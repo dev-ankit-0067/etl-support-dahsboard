@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useGetIncidentSummary, useGetIncidentQueue, useGetMttrTrend, useGetActiveIncidents } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,6 +7,21 @@ import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from "recharts";
 import { BookOpen, Ticket, Radio, ExternalLink, ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
+import IncidentDetailModal from "@/components/incidents/IncidentDetailModal";
+
+interface Incident {
+  id: string;
+  title: string;
+  severity: string;
+  status: string;
+  pipeline: string;
+  domain: string;
+  createdAt: string;
+  owner: string;
+  acknowledged: boolean;
+  escalationLevel: number;
+  age: string;
+}
 
 export default function Incidents() {
   const { data: summary } = useGetIncidentSummary();
@@ -13,6 +29,7 @@ export default function Incidents() {
   const { data: mttrTrend } = useGetMttrTrend();
   const { data: incidents } = useGetActiveIncidents();
   const [, navigate] = useLocation();
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
 
   if (!summary) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
@@ -110,7 +127,7 @@ export default function Incidents() {
         </Card>
       </div>
 
-      {/* Active Incidents Table with RCA links */}
+      {/* Active Incidents Table */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Active Incidents</CardTitle>
@@ -132,7 +149,14 @@ export default function Incidents() {
             <TableBody>
               {incidents?.map((inc) => (
                 <TableRow key={inc.id} className="group">
-                  <TableCell className="text-xs font-mono text-muted-foreground">{inc.id}</TableCell>
+                  <TableCell>
+                    <button
+                      className="text-xs font-mono text-primary underline-offset-2 hover:underline cursor-pointer"
+                      onClick={() => setSelectedIncident(inc as Incident)}
+                    >
+                      {inc.id}
+                    </button>
+                  </TableCell>
                   <TableCell className="text-xs font-medium max-w-[200px] truncate">{inc.title}</TableCell>
                   <TableCell className="text-xs font-mono text-slate-500">{inc.pipeline}</TableCell>
                   <TableCell>
@@ -263,14 +287,14 @@ export default function Incidents() {
                 <div
                   key={inc.id}
                   className="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors group"
-                  onClick={() => goToRca(inc.id, inc.pipeline)}
-                  title={`View RCA for ${inc.id}`}
+                  onClick={() => setSelectedIncident(inc as Incident)}
+                  title={`View details for ${inc.id}`}
                 >
                   <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${inc.severity === "P1" ? "bg-red-500" : inc.severity === "P2" ? "bg-amber-500" : "bg-blue-500"}`} />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium truncate">{inc.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-muted-foreground">{inc.id}</span>
+                      <span className="text-xs font-mono text-primary">{inc.id}</span>
                       <span className="text-xs text-muted-foreground">{inc.age}</span>
                       <Badge variant={inc.acknowledged ? "secondary" : "destructive"} className="text-[10px] px-1 py-0">
                         {inc.acknowledged ? "ACK" : "UNACK"}
@@ -284,6 +308,13 @@ export default function Incidents() {
           </Card>
         </div>
       </div>
+
+      {/* Incident Detail Modal */}
+      <IncidentDetailModal
+        incident={selectedIncident}
+        open={!!selectedIncident}
+        onClose={() => setSelectedIncident(null)}
+      />
     </div>
   );
 }
