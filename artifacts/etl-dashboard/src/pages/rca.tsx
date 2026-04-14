@@ -1,9 +1,12 @@
+import { useEffect, useRef } from "react";
 import { useGetRcaLifecycle, useGetRepeatIncidents, useGetFailurePatterns, useGetRcaMetrics } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { TrendingUp, TrendingDown, Minus, Bot, BookOpen, ListChecks, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, Minus, Bot, BookOpen, ListChecks, Clock, ArrowLeft, AlertTriangle } from "lucide-react";
+import { useLocation, useSearch } from "wouter";
 
 function rcaStatusBadge(status: string) {
   const map: Record<string, string> = {
@@ -26,13 +29,64 @@ export default function Rca() {
   const { data: repeats } = useGetRepeatIncidents();
   const { data: patterns } = useGetFailurePatterns();
   const { data: metrics } = useGetRcaMetrics();
+  const [, navigate] = useLocation();
+  const search = useSearch();
+
+  const params = new URLSearchParams(search);
+  const fromIncident = params.get("incident");
+  const fromPipeline = params.get("pipeline");
+
+  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    if (fromPipeline && highlightedRowRef.current) {
+      highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [fromPipeline, lifecycle]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">RCA & Prevention</h2>
-        <p className="text-muted-foreground">Root cause analysis, recurring patterns, and prevention metrics</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">RCA & Prevention</h2>
+          <p className="text-muted-foreground">Root cause analysis, recurring patterns, and prevention metrics</p>
+        </div>
+        {fromIncident && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs"
+            onClick={() => navigate("/incidents")}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to Incidents
+          </Button>
+        )}
       </div>
+
+      {/* Contextual banner when navigated from an incident */}
+      {fromIncident && fromPipeline && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-blue-900">
+              Viewing RCA for incident <span className="font-mono">{fromIncident}</span>
+            </p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              Pipeline: <span className="font-mono font-medium">{fromPipeline}</span>
+              {" · "}
+              The matching RCA entry is highlighted below.
+            </p>
+          </div>
+          <button
+            className="text-blue-500 hover:text-blue-700 text-lg leading-none shrink-0"
+            onClick={() => navigate("/rca")}
+            title="Dismiss"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {metrics && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -105,26 +159,46 @@ export default function Rca() {
                 <TableRow>
                   <TableHead className="text-xs">ID</TableHead>
                   <TableHead className="text-xs">Incident</TableHead>
+                  <TableHead className="text-xs">Pipeline</TableHead>
                   <TableHead className="text-xs">RCA Status</TableHead>
-                  <TableHead className="text-xs text-right">Days Open</TableHead>
+                  <TableHead className="text-xs text-right">Days</TableHead>
                   <TableHead className="text-xs">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lifecycle?.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="text-xs font-mono">{item.id}</TableCell>
-                    <TableCell className="text-xs max-w-[180px] truncate">{item.incidentTitle}</TableCell>
-                    <TableCell>{rcaStatusBadge(item.rcaStatus)}</TableCell>
-                    <TableCell className="text-xs text-right">{item.daysOpen}d</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">{item.completedActions}/{item.actionItems}</span>
-                        <Progress value={item.actionItems > 0 ? (item.completedActions / item.actionItems) * 100 : 0} className="w-12 h-1.5" />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {lifecycle?.map((item) => {
+                  const isHighlighted = fromPipeline && item.pipeline === fromPipeline;
+                  return (
+                    <TableRow
+                      key={item.id}
+                      ref={isHighlighted ? highlightedRowRef : null}
+                      className={
+                        isHighlighted
+                          ? "bg-blue-50 ring-1 ring-inset ring-blue-300 transition-colors"
+                          : undefined
+                      }
+                    >
+                      <TableCell className="text-xs font-mono">
+                        {isHighlighted ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                            {item.id}
+                          </span>
+                        ) : item.id}
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[160px] truncate font-medium">{item.incidentTitle}</TableCell>
+                      <TableCell className="text-xs font-mono text-slate-500">{item.pipeline}</TableCell>
+                      <TableCell>{rcaStatusBadge(item.rcaStatus)}</TableCell>
+                      <TableCell className="text-xs text-right">{item.daysOpen}d</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">{item.completedActions}/{item.actionItems}</span>
+                          <Progress value={item.actionItems > 0 ? (item.completedActions / item.actionItems) * 100 : 0} className="w-12 h-1.5" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
@@ -144,15 +218,28 @@ export default function Rca() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {repeats?.map((item) => (
-                  <TableRow key={item.pipeline}>
-                    <TableCell className="text-xs font-medium">{item.pipeline}</TableCell>
-                    <TableCell className="text-xs text-right">
-                      <span className={`font-medium ${item.count >= 5 ? "text-red-600" : "text-amber-600"}`}>{item.count}</span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{item.pattern}</TableCell>
-                  </TableRow>
-                ))}
+                {repeats?.map((item) => {
+                  const isHighlighted = fromPipeline && item.pipeline === fromPipeline;
+                  return (
+                    <TableRow
+                      key={item.pipeline}
+                      className={isHighlighted ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : undefined}
+                    >
+                      <TableCell className="text-xs font-medium">
+                        {isHighlighted ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                            {item.pipeline}
+                          </span>
+                        ) : item.pipeline}
+                      </TableCell>
+                      <TableCell className="text-xs text-right">
+                        <span className={`font-medium ${item.count >= 5 ? "text-red-600" : "text-amber-600"}`}>{item.count}</span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{item.pattern}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>

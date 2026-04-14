@@ -4,13 +4,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from "recharts";
-import { BookOpen, Ticket, Radio, ExternalLink } from "lucide-react";
+import { BookOpen, Ticket, Radio, ExternalLink, ArrowRight } from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function Incidents() {
   const { data: summary } = useGetIncidentSummary();
   const { data: queue } = useGetIncidentQueue();
   const { data: mttrTrend } = useGetMttrTrend();
   const { data: incidents } = useGetActiveIncidents();
+  const [, navigate] = useLocation();
 
   if (!summary) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
@@ -27,6 +29,10 @@ export default function Incidents() {
     { name: "4-12h", count: summary.aging4to12h },
     { name: "12h+", count: summary.aging12hPlus },
   ];
+
+  function goToRca(incidentId: string, pipeline: string) {
+    navigate(`/rca?incident=${encodeURIComponent(incidentId)}&pipeline=${encodeURIComponent(pipeline)}`);
+  }
 
   return (
     <div className="space-y-6">
@@ -103,6 +109,63 @@ export default function Incidents() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Active Incidents Table with RCA links */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Active Incidents</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">ID</TableHead>
+                <TableHead className="text-xs">Title</TableHead>
+                <TableHead className="text-xs">Pipeline</TableHead>
+                <TableHead className="text-xs">Severity</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs">Age</TableHead>
+                <TableHead className="text-xs">Owner</TableHead>
+                <TableHead className="text-xs w-20">RCA</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {incidents?.map((inc) => (
+                <TableRow key={inc.id} className="group">
+                  <TableCell className="text-xs font-mono text-muted-foreground">{inc.id}</TableCell>
+                  <TableCell className="text-xs font-medium max-w-[200px] truncate">{inc.title}</TableCell>
+                  <TableCell className="text-xs font-mono text-slate-500">{inc.pipeline}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
+                      inc.severity === "P1" ? "bg-red-100 text-red-700 border-red-200" :
+                      inc.severity === "P2" ? "bg-amber-100 text-amber-700 border-amber-200" :
+                      "bg-blue-100 text-blue-700 border-blue-200"
+                    }`}>{inc.severity}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={inc.status === "Investigating" ? "default" : "secondary"} className="text-xs">
+                      {inc.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs">{inc.age}</TableCell>
+                  <TableCell className="text-xs">{inc.owner}</TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10 gap-1 opacity-60 group-hover:opacity-100 transition-opacity"
+                      onClick={() => goToRca(inc.id, inc.pipeline)}
+                    >
+                      RCA
+                      <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -195,11 +258,16 @@ export default function Incidents() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Recent Incidents</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {incidents?.slice(0, 4).map((inc) => (
-                <div key={inc.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors">
+            <CardContent className="space-y-2">
+              {incidents?.slice(0, 5).map((inc) => (
+                <div
+                  key={inc.id}
+                  className="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors group"
+                  onClick={() => goToRca(inc.id, inc.pipeline)}
+                  title={`View RCA for ${inc.id}`}
+                >
                   <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${inc.severity === "P1" ? "bg-red-500" : inc.severity === "P2" ? "bg-amber-500" : "bg-blue-500"}`} />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium truncate">{inc.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs text-muted-foreground">{inc.id}</span>
@@ -209,6 +277,7 @@ export default function Incidents() {
                       </Badge>
                     </div>
                   </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 mt-1 transition-opacity" />
                 </div>
               ))}
             </CardContent>
