@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useGetIncidentSummary, useGetIncidentQueue, useGetMttrTrend, useGetActiveIncidents } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from "recharts";
-import { BookOpen, Ticket, Radio, ExternalLink, ArrowRight } from "lucide-react";
+import { BookOpen, Ticket, Radio, ExternalLink, ArrowRight, Phone, MessageSquare, ChevronRight } from "lucide-react";
 import { useLocation } from "wouter";
 import IncidentDetailModal from "@/components/incidents/IncidentDetailModal";
 
@@ -23,11 +24,36 @@ interface Incident {
   age: string;
 }
 
+interface OncallEntry {
+  team: string;
+  domain: string;
+  oncall: string;
+  backup: string;
+  phone: string;
+  slackHandle: string;
+  activeP1: number;
+  activeP2: number;
+  shiftStart: string;
+  shiftEnd: string;
+  escalationPath: string[];
+}
+
+function fmtShift(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
 export default function Incidents() {
   const { data: summary } = useGetIncidentSummary();
   const { data: queue } = useGetIncidentQueue();
   const { data: mttrTrend } = useGetMttrTrend();
   const { data: incidents } = useGetActiveIncidents();
+  const { data: oncall } = useQuery<OncallEntry[]>({
+    queryKey: ["incidents-oncall"],
+    queryFn: async () => {
+      const res = await fetch("/api/incidents/oncall");
+      return res.json();
+    },
+  });
   const [, navigate] = useLocation();
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
 
@@ -191,6 +217,84 @@ export default function Incidents() {
         </CardContent>
       </Card>
 
+      {/* On-call Escalation Chart */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium">On-call Escalation — Current Shift</CardTitle>
+            <span className="text-xs text-muted-foreground">Shift window: 06:00–18:00 UTC</span>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Team</TableHead>
+                <TableHead className="text-xs">On-call Engineer</TableHead>
+                <TableHead className="text-xs">Backup</TableHead>
+                <TableHead className="text-xs text-center">P1</TableHead>
+                <TableHead className="text-xs text-center">P2</TableHead>
+                <TableHead className="text-xs">Shift</TableHead>
+                <TableHead className="text-xs">Escalation Path</TableHead>
+                <TableHead className="text-xs">Contact</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {oncall?.map((entry) => (
+                <TableRow key={entry.team} className={entry.activeP1 > 0 ? "bg-red-50/40" : entry.activeP2 > 0 ? "bg-amber-50/30" : ""}>
+                  <TableCell>
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">{entry.team}</p>
+                      <p className="text-[11px] text-muted-foreground">{entry.domain}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${entry.activeP1 > 0 ? "bg-red-500" : entry.activeP2 > 0 ? "bg-amber-500" : "bg-emerald-400"}`} />
+                      <span className="text-xs font-medium">{entry.oncall}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{entry.backup}</TableCell>
+                  <TableCell className="text-center">
+                    {entry.activeP1 > 0
+                      ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 text-red-700 text-xs font-bold">{entry.activeP1}</span>
+                      : <span className="text-muted-foreground text-xs">—</span>}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {entry.activeP2 > 0
+                      ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">{entry.activeP2}</span>
+                      : <span className="text-muted-foreground text-xs">—</span>}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {fmtShift(entry.shiftStart)}–{fmtShift(entry.shiftEnd)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-0.5 flex-wrap">
+                      {entry.escalationPath.map((step, i) => (
+                        <span key={i} className="flex items-center gap-0.5">
+                          <span className="text-[11px] text-slate-600">{step}</span>
+                          {i < entry.escalationPath.length - 1 && <ChevronRight className="h-2.5 w-2.5 text-slate-300 shrink-0" />}
+                        </span>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <a href={`tel:${entry.phone}`} title={entry.phone} className="p-1 rounded hover:bg-slate-100 text-muted-foreground hover:text-slate-700 transition-colors">
+                        <Phone className="h-3 w-3" />
+                      </a>
+                      <span className="text-[11px] text-muted-foreground hover:text-slate-600 cursor-pointer" title="Slack">
+                        <MessageSquare className="h-3 w-3" />
+                      </span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card>
@@ -309,7 +413,6 @@ export default function Incidents() {
         </div>
       </div>
 
-      {/* Incident Detail Modal */}
       <IncidentDetailModal
         incident={selectedIncident}
         open={!!selectedIncident}

@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useGetLivePipelines, useGetPipelineRuns } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Play, XCircle, Clock, AlertTriangle, Loader2, ExternalLink } from "lucide-react";
+import { Play, XCircle, Clock, AlertTriangle, Loader2 } from "lucide-react";
+import PipelineRunsModal from "@/components/pipelines/PipelineRunsModal";
 
 function StatusWidget({ label, value, icon: Icon, color }: { label: string; value: number; icon: React.ElementType; color: string }) {
   return (
@@ -36,6 +38,7 @@ function statusBadge(status: string) {
 export default function LivePipelines() {
   const { data: live } = useGetLivePipelines();
   const { data: runs } = useGetPipelineRuns();
+  const [selectedPipeline, setSelectedPipeline] = useState<string | null>(null);
 
   if (!live) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
@@ -43,7 +46,7 @@ export default function LivePipelines() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Live Pipeline Operations</h2>
-        <p className="text-muted-foreground">Current pipeline status and recent job runs</p>
+        <p className="text-muted-foreground">Current pipeline status and recent job runs — click a pipeline name to view its run history</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -70,14 +73,20 @@ export default function LivePipelines() {
                 <TableHead className="text-xs">Domain</TableHead>
                 <TableHead className="text-xs">Owner</TableHead>
                 <TableHead className="text-xs">Env</TableHead>
-                <TableHead className="text-xs w-8"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {runs?.map((run) => (
-                <TableRow key={run.id}>
-                  <TableCell className="text-xs font-mono">{run.id}</TableCell>
-                  <TableCell className="text-xs font-medium">{run.pipelineName}</TableCell>
+                <TableRow key={run.id} className="group">
+                  <TableCell className="text-xs font-mono text-muted-foreground">{run.id}</TableCell>
+                  <TableCell>
+                    <button
+                      className="text-xs font-medium text-primary underline-offset-2 hover:underline cursor-pointer text-left"
+                      onClick={() => setSelectedPipeline(run.pipelineName)}
+                    >
+                      {run.pipelineName}
+                    </button>
+                  </TableCell>
                   <TableCell>{statusBadge(run.status)}</TableCell>
                   <TableCell className="text-xs">{run.startTime ? new Date(run.startTime).toLocaleTimeString() : "-"}</TableCell>
                   <TableCell className="text-xs">{run.duration}</TableCell>
@@ -88,15 +97,18 @@ export default function LivePipelines() {
                   <TableCell>
                     <Badge variant="outline" className="text-xs">{run.environment}</Badge>
                   </TableCell>
-                  <TableCell>
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground cursor-pointer hover:text-primary" />
-                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      <PipelineRunsModal
+        pipelineName={selectedPipeline}
+        open={!!selectedPipeline}
+        onClose={() => setSelectedPipeline(null)}
+      />
     </div>
   );
 }

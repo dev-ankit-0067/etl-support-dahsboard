@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGetRcaLifecycle, useGetRepeatIncidents, useGetFailurePatterns, useGetRcaMetrics } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Minus, Bot, BookOpen, ListChecks, Clock, ArrowLeft, AlertTriangle } from "lucide-react";
 import { useLocation, useSearch } from "wouter";
+import RcaDetailModal from "@/components/rca/RcaDetailModal";
 
 function rcaStatusBadge(status: string) {
   const map: Record<string, string> = {
@@ -31,6 +32,7 @@ export default function Rca() {
   const { data: metrics } = useGetRcaMetrics();
   const [, navigate] = useLocation();
   const search = useSearch();
+  const [selectedRcaId, setSelectedRcaId] = useState<string | null>(null);
 
   const params = new URLSearchParams(search);
   const fromIncident = params.get("incident");
@@ -178,15 +180,20 @@ export default function Rca() {
                           : undefined
                       }
                     >
-                      <TableCell className="text-xs font-mono">
-                        {isHighlighted ? (
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
-                            {item.id}
-                          </span>
-                        ) : item.id}
+                      <TableCell>
+                        <button
+                          className="text-xs font-mono text-primary underline-offset-2 hover:underline cursor-pointer"
+                          onClick={() => setSelectedRcaId(item.id)}
+                        >
+                          {isHighlighted ? (
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                              {item.id}
+                            </span>
+                          ) : item.id}
+                        </button>
                       </TableCell>
-                      <TableCell className="text-xs max-w-[160px] truncate font-medium">{item.incidentTitle}</TableCell>
+                      <TableCell className="text-xs max-w-[140px] truncate font-medium">{item.incidentTitle}</TableCell>
                       <TableCell className="text-xs font-mono text-slate-500">{item.pipeline}</TableCell>
                       <TableCell>{rcaStatusBadge(item.rcaStatus)}</TableCell>
                       <TableCell className="text-xs text-right">{item.daysOpen}d</TableCell>
@@ -275,6 +282,12 @@ export default function Rca() {
           </Table>
         </CardContent>
       </Card>
+
+      <RcaDetailModal
+        rcaId={selectedRcaId}
+        open={!!selectedRcaId}
+        onClose={() => setSelectedRcaId(null)}
+      />
     </div>
   );
 }
