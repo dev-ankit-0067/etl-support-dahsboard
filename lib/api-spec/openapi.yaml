@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Production Support & Cost Insights API for AWS ETL Pipelines
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: overview
+    description: Executive overview
+  - name: pipelines
+    description: Pipeline operations
+  - name: performance
+    description: Performance & throughput
+  - name: incidents
+    description: Incident management
+  - name: rca
+    description: RCA & prevention
+  - name: costs
+    description: Cost & financial insights
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +36,306 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /overview/kpis:
+    get:
+      operationId: getOverviewKpis
+      tags: [overview]
+      summary: Get executive overview KPIs
+      responses:
+        "200":
+          description: KPI data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverviewKpis"
+
+  /overview/health-distribution:
+    get:
+      operationId: getHealthDistribution
+      tags: [overview]
+      summary: Pipeline health distribution
+      responses:
+        "200":
+          description: Health distribution data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthDistribution"
+
+  /overview/job-status-trend:
+    get:
+      operationId: getJobStatusTrend
+      tags: [overview]
+      summary: Job status over time
+      responses:
+        "200":
+          description: Job status trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobStatusTrendItem"
+
+  /overview/failed-jobs:
+    get:
+      operationId: getFailedJobs
+      tags: [overview]
+      summary: Latest failed jobs
+      responses:
+        "200":
+          description: Failed jobs list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FailedJob"
+
+  /overview/active-incidents:
+    get:
+      operationId: getActiveIncidents
+      tags: [overview]
+      summary: Active incidents sorted by severity
+      responses:
+        "200":
+          description: Active incidents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Incident"
+
+  /pipelines/live:
+    get:
+      operationId: getLivePipelines
+      tags: [pipelines]
+      summary: Live pipeline operations
+      responses:
+        "200":
+          description: Live pipeline data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivePipelineData"
+
+  /pipelines/runs:
+    get:
+      operationId: getPipelineRuns
+      tags: [pipelines]
+      summary: Latest pipeline runs
+      responses:
+        "200":
+          description: Pipeline runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PipelineRun"
+
+  /performance/duration-trend:
+    get:
+      operationId: getDurationTrend
+      tags: [performance]
+      summary: Average job duration trend
+      responses:
+        "200":
+          description: Duration trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DurationTrendItem"
+
+  /performance/slowest-jobs:
+    get:
+      operationId: getSlowestJobs
+      tags: [performance]
+      summary: Slowest jobs last 24 hours
+      responses:
+        "200":
+          description: Slowest jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SlowJob"
+
+  /performance/throughput:
+    get:
+      operationId: getThroughput
+      tags: [performance]
+      summary: Records read/written throughput
+      responses:
+        "200":
+          description: Throughput data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ThroughputItem"
+
+  /incidents/summary:
+    get:
+      operationId: getIncidentSummary
+      tags: [incidents]
+      summary: Incident command center summary
+      responses:
+        "200":
+          description: Incident summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentSummary"
+
+  /incidents/queue:
+    get:
+      operationId: getIncidentQueue
+      tags: [incidents]
+      summary: Incident queue by owner
+      responses:
+        "200":
+          description: Incident queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IncidentQueueItem"
+
+  /incidents/mttr-trend:
+    get:
+      operationId: getMttrTrend
+      tags: [incidents]
+      summary: MTTA/MTTR trend over time
+      responses:
+        "200":
+          description: MTTR trend
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MttrTrendItem"
+
+  /rca/lifecycle:
+    get:
+      operationId: getRcaLifecycle
+      tags: [rca]
+      summary: Incident lifecycle with RCA status
+      responses:
+        "200":
+          description: RCA lifecycle data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RcaLifecycleItem"
+
+  /rca/repeat-incidents:
+    get:
+      operationId: getRepeatIncidents
+      tags: [rca]
+      summary: Repeat incidents by pipeline
+      responses:
+        "200":
+          description: Repeat incidents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RepeatIncident"
+
+  /rca/failure-patterns:
+    get:
+      operationId: getFailurePatterns
+      tags: [rca]
+      summary: Top recurring failure patterns
+      responses:
+        "200":
+          description: Failure patterns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FailurePattern"
+
+  /rca/metrics:
+    get:
+      operationId: getRcaMetrics
+      tags: [rca]
+      summary: RCA prevention metrics
+      responses:
+        "200":
+          description: RCA metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RcaMetrics"
+
+  /costs/kpis:
+    get:
+      operationId: getCostKpis
+      tags: [costs]
+      summary: Cost KPIs
+      responses:
+        "200":
+          description: Cost KPI data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostKpis"
+
+  /costs/breakdown:
+    get:
+      operationId: getCostBreakdown
+      tags: [costs]
+      summary: Cost breakdown by pipeline, domain, environment
+      responses:
+        "200":
+          description: Cost breakdown data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostBreakdown"
+
+  /costs/performance:
+    get:
+      operationId: getCostPerformance
+      tags: [costs]
+      summary: Cost vs performance data
+      responses:
+        "200":
+          description: Cost performance data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostPerformance"
+
+  /costs/optimization:
+    get:
+      operationId: getCostOptimization
+      tags: [costs]
+      summary: Cost optimization insights
+      responses:
+        "200":
+          description: Optimization insights
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OptimizationInsight"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +346,539 @@ components:
       required:
         - status
 
+    OverviewKpis:
+      type: object
+      properties:
+        totalPipelines:
+          type: integer
+        healthy:
+          type: integer
+        degraded:
+          type: integer
+        failed:
+          type: integer
+        failedJobs24h:
+          type: integer
+        activeP1:
+          type: integer
+        activeP2:
+          type: integer
+        slaBreaches:
+          type: integer
+        avgMtta:
+          type: number
+        avgMttr:
+          type: number
+        topImpactedDomain:
+          type: string
+        slaCompliancePercent:
+          type: number
+      required:
+        - totalPipelines
+        - healthy
+        - degraded
+        - failed
+        - failedJobs24h
+        - activeP1
+        - activeP2
+        - slaBreaches
+        - avgMtta
+        - avgMttr
+        - topImpactedDomain
+        - slaCompliancePercent
+
+    HealthDistribution:
+      type: object
+      properties:
+        domains:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              healthy:
+                type: integer
+              degraded:
+                type: integer
+              failed:
+                type: integer
+            required:
+              - name
+              - healthy
+              - degraded
+              - failed
+      required:
+        - domains
+
+    JobStatusTrendItem:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        success:
+          type: integer
+        failed:
+          type: integer
+        running:
+          type: integer
+      required:
+        - timestamp
+        - success
+        - failed
+        - running
+
+    FailedJob:
+      type: object
+      properties:
+        id:
+          type: string
+        pipelineName:
+          type: string
+        domain:
+          type: string
+        failedAt:
+          type: string
+        duration:
+          type: string
+        errorType:
+          type: string
+        owner:
+          type: string
+        severity:
+          type: string
+      required:
+        - id
+        - pipelineName
+        - domain
+        - failedAt
+        - duration
+        - errorType
+        - owner
+        - severity
+
+    Incident:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        pipeline:
+          type: string
+        domain:
+          type: string
+        createdAt:
+          type: string
+        owner:
+          type: string
+        acknowledged:
+          type: boolean
+        escalationLevel:
+          type: integer
+        age:
+          type: string
+      required:
+        - id
+        - title
+        - severity
+        - status
+        - pipeline
+        - domain
+        - createdAt
+        - owner
+        - acknowledged
+        - escalationLevel
+        - age
+
+    LivePipelineData:
+      type: object
+      properties:
+        running:
+          type: integer
+        failed:
+          type: integer
+        timedOut:
+          type: integer
+        delayed:
+          type: integer
+        waitingUpstream:
+          type: integer
+      required:
+        - running
+        - failed
+        - timedOut
+        - delayed
+        - waitingUpstream
+
+    PipelineRun:
+      type: object
+      properties:
+        id:
+          type: string
+        pipelineName:
+          type: string
+        status:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        duration:
+          type: string
+        owner:
+          type: string
+        environment:
+          type: string
+        domain:
+          type: string
+      required:
+        - id
+        - pipelineName
+        - status
+        - startTime
+        - endTime
+        - duration
+        - owner
+        - environment
+        - domain
+
+    DurationTrendItem:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        avgDurationMin:
+          type: number
+        p95DurationMin:
+          type: number
+      required:
+        - timestamp
+        - avgDurationMin
+        - p95DurationMin
+
+    SlowJob:
+      type: object
+      properties:
+        id:
+          type: string
+        pipelineName:
+          type: string
+        durationMin:
+          type: number
+        avgDurationMin:
+          type: number
+        skewness:
+          type: number
+        costPerRun:
+          type: number
+        recordsProcessed:
+          type: integer
+      required:
+        - id
+        - pipelineName
+        - durationMin
+        - avgDurationMin
+        - skewness
+        - costPerRun
+        - recordsProcessed
+
+    ThroughputItem:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        recordsRead:
+          type: integer
+        recordsWritten:
+          type: integer
+      required:
+        - timestamp
+        - recordsRead
+        - recordsWritten
+
+    IncidentSummary:
+      type: object
+      properties:
+        openByP1:
+          type: integer
+        openByP2:
+          type: integer
+        openByP3:
+          type: integer
+        openByP4:
+          type: integer
+        aging0to1h:
+          type: integer
+        aging1to4h:
+          type: integer
+        aging4to12h:
+          type: integer
+        aging12hPlus:
+          type: integer
+        acknowledged:
+          type: integer
+        unacknowledged:
+          type: integer
+      required:
+        - openByP1
+        - openByP2
+        - openByP3
+        - openByP4
+        - aging0to1h
+        - aging1to4h
+        - aging4to12h
+        - aging12hPlus
+        - acknowledged
+        - unacknowledged
+
+    IncidentQueueItem:
+      type: object
+      properties:
+        owner:
+          type: string
+        p1Count:
+          type: integer
+        p2Count:
+          type: integer
+        p3Count:
+          type: integer
+        p4Count:
+          type: integer
+        oldestAge:
+          type: string
+      required:
+        - owner
+        - p1Count
+        - p2Count
+        - p3Count
+        - p4Count
+        - oldestAge
+
+    MttrTrendItem:
+      type: object
+      properties:
+        date:
+          type: string
+        mttaMin:
+          type: number
+        mttrMin:
+          type: number
+      required:
+        - date
+        - mttaMin
+        - mttrMin
+
+    RcaLifecycleItem:
+      type: object
+      properties:
+        id:
+          type: string
+        incidentTitle:
+          type: string
+        pipeline:
+          type: string
+        rcaStatus:
+          type: string
+        daysOpen:
+          type: integer
+        actionItems:
+          type: integer
+        completedActions:
+          type: integer
+      required:
+        - id
+        - incidentTitle
+        - pipeline
+        - rcaStatus
+        - daysOpen
+        - actionItems
+        - completedActions
+
+    RepeatIncident:
+      type: object
+      properties:
+        pipeline:
+          type: string
+        count:
+          type: integer
+        lastOccurrence:
+          type: string
+        pattern:
+          type: string
+      required:
+        - pipeline
+        - count
+        - lastOccurrence
+        - pattern
+
+    FailurePattern:
+      type: object
+      properties:
+        pattern:
+          type: string
+        occurrences:
+          type: integer
+        affectedPipelines:
+          type: integer
+        lastSeen:
+          type: string
+        trend:
+          type: string
+      required:
+        - pattern
+        - occurrences
+        - affectedPipelines
+        - lastSeen
+        - trend
+
+    RcaMetrics:
+      type: object
+      properties:
+        automationSuccessRate:
+          type: number
+        runbookUsagePercent:
+          type: number
+        openRcaBacklog:
+          type: integer
+        avgRcaCompletionDays:
+          type: number
+        changeCorrelationPercent:
+          type: number
+      required:
+        - automationSuccessRate
+        - runbookUsagePercent
+        - openRcaBacklog
+        - avgRcaCompletionDays
+        - changeCorrelationPercent
+
+    CostKpis:
+      type: object
+      properties:
+        totalCostMtd:
+          type: number
+        avgCostPerRun:
+          type: number
+        costOfFailedRuns:
+          type: number
+        costAnomalies:
+          type: integer
+        budgetUtilization:
+          type: number
+        budget:
+          type: number
+      required:
+        - totalCostMtd
+        - avgCostPerRun
+        - costOfFailedRuns
+        - costAnomalies
+        - budgetUtilization
+        - budget
+
+    CostBreakdown:
+      type: object
+      properties:
+        byPipeline:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              cost:
+                type: number
+            required:
+              - name
+              - cost
+        byDomain:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              cost:
+                type: number
+            required:
+              - name
+              - cost
+        byEnvironment:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              cost:
+                type: number
+            required:
+              - name
+              - cost
+      required:
+        - byPipeline
+        - byDomain
+        - byEnvironment
+
+    CostPerformance:
+      type: object
+      properties:
+        costVsRuntime:
+          type: array
+          items:
+            type: object
+            properties:
+              pipeline:
+                type: string
+              cost:
+                type: number
+              runtimeMin:
+                type: number
+            required:
+              - pipeline
+              - cost
+              - runtimeMin
+        costVsVolume:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              cost:
+                type: number
+              volumeGb:
+                type: number
+            required:
+              - date
+              - cost
+              - volumeGb
+        retryCostWaste:
+          type: number
+      required:
+        - costVsRuntime
+        - costVsVolume
+        - retryCostWaste
+
+    OptimizationInsight:
+      type: object
+      properties:
+        type:
+          type: string
+        pipeline:
+          type: string
+        description:
+          type: string
+        estimatedSavings:
+          type: number
+        priority:
+          type: string
+      required:
+        - type
+        - pipeline
+        - description
+        - estimatedSavings
+        - priority

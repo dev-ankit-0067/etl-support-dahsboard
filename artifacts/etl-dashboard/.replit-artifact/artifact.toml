@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "ETL Pipeline Dashboard"
+version = "1.0.0"
+id = "artifacts/etl-dashboard"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19314
+
+[services.development]
+run = "pnpm --filter @workspace/etl-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/etl-dashboard", "run", "build" ]
+publicDir = "artifacts/etl-dashboard/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19314"
+BASE_PATH = "/"

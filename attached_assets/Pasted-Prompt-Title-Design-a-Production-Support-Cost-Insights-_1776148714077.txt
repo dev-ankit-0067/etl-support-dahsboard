@@ -1,0 +1,185 @@
+Prompt Title
+Design a Production Support & Cost Insights Web Dashboard for AWS ETL Pipelines using a light, professional enterprise theme, optimized for executive leadership and production support teams.
+
+Design Style Guidelines
+
+Theme: Light color palette (white, light gray backgrounds)
+Primary Accents: Soft blue, teal, muted green
+Status Colors:
+
+Red → Action required
+Amber → Risk / Near breach
+Green → Healthy
+
+
+Typography: Clean enterprise fonts (Inter / Roboto / SF Pro–style)
+Visual Language: KPI cards, clean tables, minimal icons, subtle shadows
+Avoid: Dark themes, excessive gradients, decorative charts
+
+
+Overall Layout
+
+
+Top Header (Persistent):
+
+Global filters (Environment, Domain, Pipeline, Date)
+Last refresh timestamp
+User role indicator
+
+
+
+Left Navigation (Vertical):
+
+Executive Overview
+Live Pipeline Operations
+Performance & Throughput
+Incident Command Center
+RCA & Prevention
+Cost & Financial Insights
+
+
+
+
+Screen 1: Executive Overview (Landing Page)
+Top KPI Strip (Single Row)
+
+Total Pipelines
+Healthy | Degraded | Failed
+Failed Jobs – Last 24 Hours
+Active P1 / P2 Incidents
+SLA Breaches
+Avg MTTA | Avg MTTR
+Top Impacted Business Domain
+
+Wireframe Notes:
+
+KPI cards with icons
+Minimal text + tooltips
+Red KPIs only where action is needed
+
+
+Row 2: Operational Health
+
+Pipeline health distribution (stacked bar)
+Job status over time
+SLA compliance indicator
+
+
+Row 3: Action Tables
+
+Latest failed jobs (table with drill-down)
+Active incidents sorted by severity & age
+
+
+Screen 2: Live Pipeline Operations
+Widgets
+
+Running jobs
+Failed jobs
+Timed-out jobs
+Delayed jobs
+Waiting on upstream dependencies
+
+Table
+
+Latest runs per pipeline
+
+Status
+Start / End time
+Duration
+Owner
+Log link icon
+
+
+
+
+Screen 3: Performance & Throughput
+Visuals
+
+Average job duration trend
+Slowest jobs (last 24 hours)
+Records read / written
+Stage skewness indicator
+Cost per job (secondary indicator, small font)
+
+
+Screen 4: Incident Management Command Center
+Upper Section
+
+Open incidents by severity
+Incident aging buckets
+Acknowledged vs unacknowledged
+
+Lower Section
+
+Incident queue by owner
+Escalation level view
+MTTA / MTTR trend
+
+Right Panel
+
+Direct links:
+
+Runbook
+Ticket
+Bridge / War room
+
+
+
+
+Screen 5: RCA & Prevention
+Visuals
+
+Incident lifecycle with RCA status
+Repeat incidents by pipeline
+Top recurring failure patterns
+Change vs incident correlation
+
+Metrics
+
+Automation success rate
+Runbook usage
+Open RCA backlog
+
+
+Screen 6: Cost & Financial Insights (Executive Page)
+Top Cost KPIs
+
+Total ETL cost (MTD)
+Avg cost per pipeline run
+Cost of failed runs
+Cost anomalies detected
+Spend vs budget indicator
+
+
+Cost Breakdown
+
+Cost by pipeline
+Cost by business domain
+Cost by environment (Dev / QA / Prod)
+Top 10 expensive pipelines
+
+
+Cost vs Performance
+
+Cost vs runtime scatter plot
+Cost vs data volume trend
+Retry-driven cost waste
+
+
+Optimization Insights Panel
+
+Over-provisioned jobs
+High retry cost pipelines
+Estimated savings opportunities
+
+Design Note:
+Optimization insights should be advisory, not alarming.
+
+Footer
+
+Logs
+Runbooks
+Escalation matrix
+Support contacts
+Audit / compliance notes
