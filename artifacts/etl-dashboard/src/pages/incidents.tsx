@@ -392,7 +392,7 @@ export default function Incidents() {
               <CardTitle className="text-sm font-medium">Recent Incidents</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {incidents?.slice(0, 5).map((inc) => (
+              {incidentsList.slice(0, 5).map((inc) => (
                 <div
                   key={inc.id}
                   className="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors group"
