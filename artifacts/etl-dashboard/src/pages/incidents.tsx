@@ -59,6 +59,11 @@ export default function Incidents() {
 
   if (!summary) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
+  const incidentsList = Array.isArray(incidents) ? incidents : [];
+  const oncallList = Array.isArray(oncall) ? oncall : [];
+  const queueList = Array.isArray(queue) ? queue : [];
+  const mttrTrendData = Array.isArray(mttrTrend) ? mttrTrend : [];
+
   const severityData = [
     { name: "P1", count: summary.openByP1, fill: "#ef4444" },
     { name: "P2", count: summary.openByP2, fill: "#f59e0b" },
@@ -173,7 +178,7 @@ export default function Incidents() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {incidents?.map((inc) => (
+              {incidentsList.map((inc) => (
                 <TableRow key={inc.id} className="group">
                   <TableCell>
                     <button
@@ -240,7 +245,7 @@ export default function Incidents() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {oncall?.map((entry) => (
+              {oncallList.map((entry) => (
                 <TableRow key={entry.team} className={entry.activeP1 > 0 ? "bg-red-50/40" : entry.activeP2 > 0 ? "bg-amber-50/30" : ""}>
                   <TableCell>
                     <div>
@@ -314,7 +319,7 @@ export default function Incidents() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {queue?.map((item) => (
+                  {queueList.map((item) => (
                     <TableRow key={item.owner}>
                       <TableCell className="text-xs font-medium">{item.owner}</TableCell>
                       <TableCell className="text-xs text-center">
@@ -342,9 +347,9 @@ export default function Incidents() {
               <CardTitle className="text-sm font-medium">MTTA / MTTR Trend (30d)</CardTitle>
             </CardHeader>
             <CardContent>
-              {mttrTrend && (
+              {mttrTrendData.length > 0 && (
                 <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={mttrTrend} margin={{ left: 0 }}>
+                  <LineChart data={mttrTrendData} margin={{ left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} />
                     <YAxis tick={{ fontSize: 11 }} unit=" min" />

@@ -49,6 +49,11 @@ export default function ExecutiveOverview() {
 
   if (!kpis) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
+  const failedJobsList = Array.isArray(failedJobs) ? failedJobs : [];
+  const incidentsList = Array.isArray(incidents) ? incidents : [];
+  const healthDistDomains = Array.isArray(healthDist?.domains) ? healthDist.domains : [];
+  const trendData = Array.isArray(trend) ? trend : [];
+
   return (
     <div className="space-y-6">
       <div>
@@ -78,9 +83,9 @@ export default function ExecutiveOverview() {
             <CardTitle className="text-sm font-medium">Pipeline Health by Domain</CardTitle>
           </CardHeader>
           <CardContent>
-            {healthDist && (
+            {healthDistDomains.length > 0 && (
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={healthDist.domains} layout="vertical" margin={{ left: 80 }}>
+                <BarChart data={healthDistDomains} layout="vertical" margin={{ left: 80 }}>
                   <XAxis type="number" />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={75} />
                   <Tooltip />
@@ -98,9 +103,9 @@ export default function ExecutiveOverview() {
             <CardTitle className="text-sm font-medium">Job Status Trend (24h)</CardTitle>
           </CardHeader>
           <CardContent>
-            {trend && (
+            {trendData.length > 0 && (
               <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={trend} margin={{ left: 0 }}>
+                <AreaChart data={trendData} margin={{ left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(11, 16)} />
                   <YAxis tick={{ fontSize: 11 }} />
@@ -132,7 +137,7 @@ export default function ExecutiveOverview() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {failedJobs?.slice(0, 5).map((job) => (
+                {failedJobsList.slice(0, 5).map((job) => (
                   <TableRow key={job.id}>
                     <TableCell className="text-xs font-mono">{job.id}</TableCell>
                     <TableCell className="text-xs">{job.pipelineName}</TableCell>
@@ -162,7 +167,7 @@ export default function ExecutiveOverview() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {incidents?.slice(0, 5).map((inc) => (
+                {incidentsList.slice(0, 5).map((inc) => (
                   <TableRow key={inc.id}>
                     <TableCell className="text-xs font-mono">{inc.id}</TableCell>
                     <TableCell className="text-xs max-w-[200px] truncate">{inc.title}</TableCell>

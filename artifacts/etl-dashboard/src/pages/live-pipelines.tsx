@@ -42,6 +42,8 @@ export default function LivePipelines() {
 
   if (!live) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
+  const runsList = Array.isArray(runs) ? runs : [];
+
   return (
     <div className="space-y-6">
       <div>
@@ -76,7 +78,7 @@ export default function LivePipelines() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {runs?.map((run) => (
+              {runsList.map((run) => (
                 <TableRow key={run.id} className="group">
                   <TableCell className="text-xs font-mono text-muted-foreground">{run.id}</TableCell>
                   <TableCell>

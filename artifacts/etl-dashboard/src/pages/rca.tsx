@@ -40,6 +40,10 @@ export default function Rca() {
 
   const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
+  const lifecycleList = Array.isArray(lifecycle) ? lifecycle : [];
+  const repeatsList = Array.isArray(repeats) ? repeats : [];
+  const patternsList = Array.isArray(patterns) ? patterns : [];
+
   useEffect(() => {
     if (fromPipeline && highlightedRowRef.current) {
       highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -168,7 +172,7 @@ export default function Rca() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lifecycle?.map((item) => {
+                {lifecycleList.map((item) => {
                   const isHighlighted = fromPipeline && item.pipeline === fromPipeline;
                   return (
                     <TableRow
@@ -225,7 +229,7 @@ export default function Rca() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {repeats?.map((item) => {
+                {repeatsList.map((item) => {
                   const isHighlighted = fromPipeline && item.pipeline === fromPipeline;
                   return (
                     <TableRow
@@ -269,7 +273,7 @@ export default function Rca() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {patterns?.map((item) => (
+              {patternsList.map((item) => (
                 <TableRow key={item.pattern}>
                   <TableCell className="text-xs font-medium">{item.pattern}</TableCell>
                   <TableCell className="text-xs text-right font-mono">{item.occurrences}</TableCell>

@@ -8,6 +8,10 @@ export default function Performance() {
   const { data: slowJobs } = useGetSlowestJobs();
   const { data: throughput } = useGetThroughput();
 
+  const slowJobsList = Array.isArray(slowJobs) ? slowJobs : [];
+  const durationTrendData = Array.isArray(durationTrend) ? durationTrend : [];
+  const throughputData = Array.isArray(throughput) ? throughput : [];
+
   return (
     <div className="space-y-6">
       <div>
@@ -21,9 +25,9 @@ export default function Performance() {
             <CardTitle className="text-sm font-medium">Average Job Duration Trend (14d)</CardTitle>
           </CardHeader>
           <CardContent>
-            {durationTrend && (
+            {durationTrendData.length > 0 && (
               <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={durationTrend} margin={{ left: 0 }}>
+                <LineChart data={durationTrendData} margin={{ left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} />
                   <YAxis tick={{ fontSize: 11 }} unit=" min" />
@@ -41,9 +45,9 @@ export default function Performance() {
             <CardTitle className="text-sm font-medium">Records Read / Written (24h)</CardTitle>
           </CardHeader>
           <CardContent>
-            {throughput && (
+            {throughputData.length > 0 && (
               <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={throughput} margin={{ left: 0 }}>
+                <AreaChart data={throughputData} margin={{ left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(11, 16)} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${(v / 1000000).toFixed(1)}M`} />
@@ -74,7 +78,7 @@ export default function Performance() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {slowJobs?.map((job) => (
+              {slowJobsList.map((job) => (
                 <TableRow key={job.id}>
                   <TableCell className="text-xs font-medium">{job.pipelineName}</TableCell>
                   <TableCell className="text-xs text-right font-mono">{job.durationMin.toFixed(1)} min</TableCell>
