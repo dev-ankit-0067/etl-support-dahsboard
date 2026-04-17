@@ -17,7 +17,7 @@ export default function Costs() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Cost Insights</h2>
-        <p className="text-muted-foreground">Infrastructure spend by pipeline and daily trends</p>
+        <p className="text-muted-foreground">Infrastructure spend by jobs and daily trends</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -74,7 +74,7 @@ export default function Costs() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Cost by Pipeline (Top 10)</CardTitle>
+            <CardTitle className="text-sm font-medium">Cost by Jobs (Top 10)</CardTitle>
           </CardHeader>
           <CardContent>
             {breakdown && (
@@ -104,51 +104,23 @@ export default function Costs() {
           <CardContent>
             {perf && (
               <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={perf.costVsVolume} margin={{ left: 0, right: 20 }}>
+                <LineChart data={perf.costVsPipeline} margin={{ left: 0, right: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(v: string) => v.slice(5)}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(v: number) => `$${(v / 1000).toFixed(1)}k`}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(v: number) => `${v.toFixed(0)} GB`}
-                  />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `$${v.toFixed(0)}`} />
                   <Tooltip
-                    formatter={(value: number, name: string) =>
-                      name === "Cost ($)" ? [`$${value.toLocaleString()}`, name] : [`${value.toFixed(0)} GB`, name]
-                    }
+                    formatter={(value: number) => [`$${value.toLocaleString()}`, "Job Cost"]}
                     labelFormatter={(v: string) => `Date: ${v}`}
                   />
                   <Legend />
                   <Line
-                    yAxisId="left"
                     type="monotone"
                     dataKey="cost"
                     stroke="#3b82f6"
                     strokeWidth={2.5}
                     dot={{ r: 3, fill: "#3b82f6" }}
                     activeDot={{ r: 5 }}
-                    name="Cost ($)"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="volumeGb"
-                    stroke="#10b981"
-                    strokeWidth={2.5}
-                    dot={{ r: 3, fill: "#10b981" }}
-                    activeDot={{ r: 5 }}
-                    strokeDasharray="5 3"
-                    name="Volume (GB)"
+                    name="Job Cost"
                   />
                 </LineChart>
               </ResponsiveContainer>
