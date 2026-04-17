@@ -14,7 +14,6 @@ interface JobRun {
   startTime: string;
   endTime: string;
   duration: string;
-  domain: string;
   costPerRun: number;
 }
 
@@ -149,7 +148,6 @@ export default function ExecutiveOverview() {
                 <TableHead className="text-xs">Job ID</TableHead>
                 <TableHead className="text-xs">Pipeline</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
-                <TableHead className="text-xs">Domain</TableHead>
                 <TableHead className="text-xs">Start Time</TableHead>
                 <TableHead className="text-xs">End Time</TableHead>
                 <TableHead className="text-xs">Duration</TableHead>
@@ -174,9 +172,6 @@ export default function ExecutiveOverview() {
                     </button>
                   </TableCell>
                   <TableCell>{statusBadge(run.status)}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-xs">{run.domain}</Badge>
-                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {run.startTime ? new Date(run.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
                   </TableCell>
