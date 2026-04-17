@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, XCircle, Briefcase, Play, Clock, AlertTriangle, DollarSign } from "lucide-react";
+import { CheckCircle2, XCircle, Briefcase, Clock, DollarSign } from "lucide-react";
 import PipelineRunsModal from "@/components/pipelines/PipelineRunsModal";
 
 interface JobRun {
@@ -12,8 +12,8 @@ interface JobRun {
   pipelineName: string;
   status: string;
   startTime: string;
+  endTime: string;
   duration: string;
-  owner: string;
   domain: string;
   costPerRun: number;
 }
@@ -150,8 +150,8 @@ export default function ExecutiveOverview() {
                 <TableHead className="text-xs">Pipeline</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
                 <TableHead className="text-xs">Domain</TableHead>
-                <TableHead className="text-xs">Owner</TableHead>
                 <TableHead className="text-xs">Start Time</TableHead>
+                <TableHead className="text-xs">End Time</TableHead>
                 <TableHead className="text-xs">Duration</TableHead>
                 <TableHead className="text-xs text-right">
                   <span className="flex items-center justify-end gap-1">
@@ -177,9 +177,11 @@ export default function ExecutiveOverview() {
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">{run.domain}</Badge>
                   </TableCell>
-                  <TableCell className="text-xs">{run.owner}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {run.startTime ? new Date(run.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {run.endTime ? new Date(run.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
                   </TableCell>
                   <TableCell className="text-xs">
                     <span className="flex items-center gap-1">
