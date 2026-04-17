@@ -1,13 +1,28 @@
+import { useMemo, useState } from "react";
 import { useGetCostKpis, useGetCostBreakdown, useGetCostPerformance } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import { DollarSign, TrendingUp, AlertTriangle, Target } from "lucide-react";
+
+const DATE_MULTIPLIERS: Record<string, string> = {
+  today: "today",
+  "7d": "7d",
+  "30d": "30d",
+};
 
 export default function Costs() {
   const { data: kpis } = useGetCostKpis();
   const { data: breakdown } = useGetCostBreakdown();
   const { data: perf } = useGetCostPerformance();
+  const [dateRange, setDateRange] = useState("7d");
+
+  const trendData = useMemo(() => {
+    if (!perf) return [];
+    const key = DATE_MULTIPLIERS[dateRange] ?? "7d";
+    return perf.costRanges?.[key] ?? perf.costVsPipeline ?? [];
+  }, [perf, dateRange]);
 
   if (!kpis) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
@@ -92,19 +107,24 @@ export default function Costs() {
 
         <Card className="lg:col-span-3">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <CardTitle className="text-sm font-medium">Daily Cost Trend</CardTitle>
-              {perf && (
-                <span className="text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                  Retry waste: ${perf.retryCostWaste.toLocaleString()}
-                </span>
-              )}
+              <Select value={dateRange} onValueChange={setDateRange}>
+                <SelectTrigger className="h-9 w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="7d">Last 7 Days</SelectItem>
+                  <SelectItem value="30d">Last 30 Days</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardHeader>
           <CardContent>
             {perf && (
               <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={perf.costVsPipeline} margin={{ left: 0, right: 20 }}>
+                <LineChart data={trendData} margin={{ left: 0, right: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `$${v.toFixed(0)}`} />
