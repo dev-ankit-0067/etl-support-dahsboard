@@ -5,10 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import ExecutiveOverview from "@/pages/executive-overview";
-import LivePipelines from "@/pages/live-pipelines";
-import Performance from "@/pages/performance";
 import Incidents from "@/pages/incidents";
-import Rca from "@/pages/rca";
 import Costs from "@/pages/costs";
 
 const queryClient = new QueryClient();
@@ -18,10 +15,7 @@ function Router() {
     <DashboardLayout>
       <Switch>
         <Route path="/" component={ExecutiveOverview} />
-        <Route path="/pipelines" component={LivePipelines} />
-        <Route path="/performance" component={Performance} />
         <Route path="/incidents" component={Incidents} />
-        <Route path="/rca" component={Rca} />
         <Route path="/costs" component={Costs} />
         <Route component={NotFound} />
       </Switch>

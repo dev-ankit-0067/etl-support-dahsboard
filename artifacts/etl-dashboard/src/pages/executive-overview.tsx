@@ -1,185 +1,211 @@
-import { useGetOverviewKpis, useGetHealthDistribution, useGetJobStatusTrend, useGetFailedJobs, useGetActiveIncidents } from "@workspace/api-client-react";
+import { useState } from "react";
+import { useGetOverviewKpis, useGetPipelineRuns } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from "recharts";
-import { Activity, AlertTriangle, CheckCircle2, XCircle, Clock, ShieldAlert, Target, TrendingDown } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CheckCircle2, XCircle, Briefcase, Play, Clock, AlertTriangle, DollarSign } from "lucide-react";
+import PipelineRunsModal from "@/components/pipelines/PipelineRunsModal";
 
-function KpiCard({ title, value, icon: Icon, variant = "default", subtitle }: { title: string; value: string | number; icon: React.ElementType; variant?: "default" | "success" | "warning" | "danger"; subtitle?: string }) {
-  const colors = {
-    default: "text-primary",
-    success: "text-emerald-600",
-    warning: "text-amber-500",
-    danger: "text-red-500",
-  };
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
-            <p className={`text-2xl font-bold ${colors[variant]}`}>{value}</p>
-            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-          </div>
-          <div className={`p-2 rounded-lg bg-slate-50 ${colors[variant]}`}>
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+interface JobRun {
+  id: string;
+  pipelineName: string;
+  status: string;
+  startTime: string;
+  duration: string;
+  owner: string;
+  domain: string;
+  costPerRun: number;
 }
 
-function severityBadge(severity: string) {
+const DATE_MULTIPLIERS: Record<string, number> = {
+  today: 1,
+  "7d": 7,
+  "30d": 30,
+};
+
+function statusBadge(status: string) {
   const map: Record<string, string> = {
-    P1: "bg-red-100 text-red-700 border-red-200",
-    P2: "bg-amber-100 text-amber-700 border-amber-200",
-    P3: "bg-blue-100 text-blue-700 border-blue-200",
-    P4: "bg-slate-100 text-slate-600 border-slate-200",
+    Running: "bg-blue-100 text-blue-700 border-blue-200",
+    Success: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    Failed: "bg-red-100 text-red-700 border-red-200",
+    Delayed: "bg-amber-100 text-amber-700 border-amber-200",
+    Waiting: "bg-slate-100 text-slate-600 border-slate-200",
+    "Timed Out": "bg-orange-100 text-orange-700 border-orange-200",
   };
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${map[severity] || map.P4}`}>{severity}</span>;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${map[status] || map.Waiting}`}>
+      {status}
+    </span>
+  );
 }
 
 export default function ExecutiveOverview() {
   const { data: kpis } = useGetOverviewKpis();
-  const { data: healthDist } = useGetHealthDistribution();
-  const { data: trend } = useGetJobStatusTrend();
-  const { data: failedJobs } = useGetFailedJobs();
-  const { data: incidents } = useGetActiveIncidents();
+  const { data: runs } = useGetPipelineRuns();
+  const [dateRange, setDateRange] = useState("today");
+  const [selectedPipeline, setSelectedPipeline] = useState<string | null>(null);
 
   if (!kpis) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
+  const mult = DATE_MULTIPLIERS[dateRange] ?? 1;
+  const totalJobs = Math.round(kpis.totalPipelines * mult * (dateRange === "today" ? 1 : 0.9));
+  const healthyJobs = Math.round(kpis.healthy * mult * (dateRange === "today" ? 1 : 0.88));
+  const failedJobs = Math.round((kpis.failed + kpis.degraded) * mult * (dateRange === "today" ? 1 : 1.05));
+
+  const jobRuns: JobRun[] = (runs as JobRun[] | undefined) ?? [];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Executive Overview</h2>
-        <p className="text-muted-foreground">Platform health and high-level KPIs</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Executive Overview</h2>
+          <p className="text-muted-foreground">Job health and key performance indicators</p>
+        </div>
+        <Select value={dateRange} onValueChange={setDateRange}>
+          <SelectTrigger className="h-9 w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="today">Today</SelectItem>
+            <SelectItem value="7d">Last 7 Days</SelectItem>
+            <SelectItem value="30d">Last 30 Days</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        <KpiCard title="Total Pipelines" value={kpis.totalPipelines} icon={Activity} />
-        <KpiCard title="Healthy" value={kpis.healthy} icon={CheckCircle2} variant="success" />
-        <KpiCard title="Degraded" value={kpis.degraded} icon={TrendingDown} variant="warning" />
-        <KpiCard title="Failed" value={kpis.failed} icon={XCircle} variant="danger" />
-        <KpiCard title="Failed Jobs (24h)" value={kpis.failedJobs24h} icon={AlertTriangle} variant={kpis.failedJobs24h > 10 ? "danger" : "warning"} />
-        <KpiCard title="Active P1/P2" value={`${kpis.activeP1} / ${kpis.activeP2}`} icon={ShieldAlert} variant={kpis.activeP1 > 0 ? "danger" : "default"} />
-        <KpiCard title="SLA Breaches" value={kpis.slaBreaches} icon={Target} variant={kpis.slaBreaches > 0 ? "danger" : "success"} />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <KpiCard title="Avg MTTA" value={`${kpis.avgMtta} min`} icon={Clock} subtitle="Mean time to acknowledge" />
-        <KpiCard title="Avg MTTR" value={`${kpis.avgMttr} min`} icon={Clock} subtitle="Mean time to resolve" />
-        <KpiCard title="SLA Compliance" value={`${kpis.slaCompliancePercent}%`} icon={Target} variant={kpis.slaCompliancePercent >= 95 ? "success" : "warning"} subtitle={`Top impacted: ${kpis.topImpactedDomain}`} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Pipeline Health by Domain</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {healthDist && (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={healthDist.domains} layout="vertical" margin={{ left: 80 }}>
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={75} />
-                  <Tooltip />
-                  <Bar dataKey="healthy" stackId="a" fill="#10b981" name="Healthy" />
-                  <Bar dataKey="degraded" stackId="a" fill="#f59e0b" name="Degraded" />
-                  <Bar dataKey="failed" stackId="a" fill="#ef4444" name="Failed" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Total Jobs</p>
+                <p className="text-3xl font-bold text-slate-800">{totalJobs.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">Across all pipelines</p>
+              </div>
+              <div className="p-3 rounded-xl bg-blue-50">
+                <Briefcase className="h-6 w-6 text-blue-500" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Job Status Trend (24h)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {trend && (
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={trend} margin={{ left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(11, 16)} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip labelFormatter={(v: string) => v.slice(11, 16)} />
-                  <Area type="monotone" dataKey="success" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Success" />
-                  <Area type="monotone" dataKey="running" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Running" />
-                  <Area type="monotone" dataKey="failed" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.3} name="Failed" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Healthy Jobs</p>
+                <p className="text-3xl font-bold text-emerald-600">{healthyJobs.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalJobs > 0 ? Math.round((healthyJobs / totalJobs) * 100) : 0}% success rate
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-emerald-50">
+                <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Failed Jobs</p>
+                <p className="text-3xl font-bold text-red-600">{failedJobs.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalJobs > 0 ? Math.round((failedJobs / totalJobs) * 100) : 0}% failure rate
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-red-50">
+                <XCircle className="h-6 w-6 text-red-500" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Latest Failed Jobs</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Job ID</TableHead>
-                  <TableHead className="text-xs">Pipeline</TableHead>
-                  <TableHead className="text-xs">Error</TableHead>
-                  <TableHead className="text-xs">Severity</TableHead>
-                  <TableHead className="text-xs">Owner</TableHead>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Running
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Success
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Failed
+              </span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Job ID</TableHead>
+                <TableHead className="text-xs">Pipeline</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs">Domain</TableHead>
+                <TableHead className="text-xs">Owner</TableHead>
+                <TableHead className="text-xs">Start Time</TableHead>
+                <TableHead className="text-xs">Duration</TableHead>
+                <TableHead className="text-xs text-right">
+                  <span className="flex items-center justify-end gap-1">
+                    <DollarSign className="h-3 w-3" />
+                    Cost/Run
+                  </span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {jobRuns.map((run) => (
+                <TableRow key={run.id} className="group">
+                  <TableCell className="text-xs font-mono text-muted-foreground">{run.id}</TableCell>
+                  <TableCell>
+                    <button
+                      className="text-xs font-medium text-primary underline-offset-2 hover:underline cursor-pointer text-left"
+                      onClick={() => setSelectedPipeline(run.pipelineName)}
+                    >
+                      {run.pipelineName}
+                    </button>
+                  </TableCell>
+                  <TableCell>{statusBadge(run.status)}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="text-xs">{run.domain}</Badge>
+                  </TableCell>
+                  <TableCell className="text-xs">{run.owner}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {run.startTime ? new Date(run.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      {run.duration}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-xs text-right font-mono">
+                    {run.costPerRun > 0 ? (
+                      <span className="font-medium text-slate-700">${run.costPerRun.toFixed(2)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {failedJobs?.slice(0, 5).map((job) => (
-                  <TableRow key={job.id}>
-                    <TableCell className="text-xs font-mono">{job.id}</TableCell>
-                    <TableCell className="text-xs">{job.pipelineName}</TableCell>
-                    <TableCell className="text-xs">{job.errorType}</TableCell>
-                    <TableCell>{severityBadge(job.severity)}</TableCell>
-                    <TableCell className="text-xs">{job.owner}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Active Incidents</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">ID</TableHead>
-                  <TableHead className="text-xs">Title</TableHead>
-                  <TableHead className="text-xs">Severity</TableHead>
-                  <TableHead className="text-xs">Status</TableHead>
-                  <TableHead className="text-xs">Age</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {incidents?.slice(0, 5).map((inc) => (
-                  <TableRow key={inc.id}>
-                    <TableCell className="text-xs font-mono">{inc.id}</TableCell>
-                    <TableCell className="text-xs max-w-[200px] truncate">{inc.title}</TableCell>
-                    <TableCell>{severityBadge(inc.severity)}</TableCell>
-                    <TableCell>
-                      <Badge variant={inc.status === "Investigating" ? "default" : "secondary"} className="text-xs">
-                        {inc.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs">{inc.age}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+      <PipelineRunsModal
+        pipelineName={selectedPipeline}
+        open={!!selectedPipeline}
+        onClose={() => setSelectedPipeline(null)}
+      />
     </div>
   );
 }

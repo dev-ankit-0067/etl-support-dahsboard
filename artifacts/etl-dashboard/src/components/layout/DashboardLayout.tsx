@@ -1,24 +1,21 @@
 import { Link, useLocation } from "wouter";
-import { 
-  BarChart3, 
-  Activity, 
-  AlertTriangle, 
-  ActivitySquare,
+import {
+  BarChart3,
+  AlertTriangle,
   Search,
   Settings,
   Bell,
   RefreshCw,
   LayoutDashboard,
-  ShieldAlert,
   DollarSign
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 
@@ -27,10 +24,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { name: "Executive Overview", path: "/", icon: LayoutDashboard },
-    { name: "Live Pipelines", path: "/pipelines", icon: Activity },
-    { name: "Performance", path: "/performance", icon: ActivitySquare },
-    { name: "Incident Command", path: "/incidents", icon: AlertTriangle },
-    { name: "RCA & Prevention", path: "/rca", icon: ShieldAlert },
+    { name: "Incident Center", path: "/incidents", icon: AlertTriangle },
     { name: "Cost Insights", path: "/costs", icon: DollarSign },
   ];
 
@@ -102,7 +96,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
               <Input
                 type="search"
-                placeholder="Search pipelines, incidents..."
+                placeholder="Search jobs, incidents..."
                 className="w-full bg-slate-50 pl-8 h-9"
               />
             </div>
