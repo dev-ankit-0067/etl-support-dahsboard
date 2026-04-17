@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from "recharts";
-import { ArrowRight } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import IncidentDetailModal from "@/components/incidents/IncidentDetailModal";
 
 interface Incident {
@@ -14,7 +13,6 @@ interface Incident {
   severity: string;
   status: string;
   pipeline: string;
-  domain: string;
   createdAt: string;
   owner: string;
   acknowledged: boolean;
@@ -52,6 +50,48 @@ export default function Incidents() {
     { name: "4–12h", count: summary.aging4to12h },
     { name: "12h+", count: summary.aging12hPlus },
   ];
+
+  const closedIncidents: Incident[] = [
+    {
+      id: "INC-1034",
+      title: "Sales order ingest schema drift",
+      severity: "P2",
+      status: "Resolved",
+      pipeline: "sales_order_ingest",
+      createdAt: "2026-04-12T05:10:00Z",
+      owner: "Tom Hardy",
+      acknowledged: true,
+      escalationLevel: 1,
+      age: "Closed",
+    },
+    {
+      id: "INC-1033",
+      title: "Treasury rates timeout after TLS upgrade",
+      severity: "P1",
+      status: "Resolved",
+      pipeline: "fin_treasury_rates",
+      createdAt: "2026-04-07T07:00:00Z",
+      owner: "Sarah Chen",
+      acknowledged: true,
+      escalationLevel: 2,
+      age: "Closed",
+    },
+    {
+      id: "INC-1032",
+      title: "Inventory backfill OOM hotfix verified",
+      severity: "P1",
+      status: "Resolved",
+      pipeline: "ops_inventory_load",
+      createdAt: "2026-04-06T06:15:00Z",
+      owner: "Priya Patel",
+      acknowledged: true,
+      escalationLevel: 1,
+      age: "Closed",
+    },
+  ];
+
+  const activeIncidentRows = incidents?.filter((inc) => inc.status !== "Resolved") ?? [];
+  const incidentRows = [...closedIncidents, ...activeIncidentRows];
 
   return (
     <div className="space-y-6">
@@ -111,21 +151,17 @@ export default function Incidents() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">MTTA / MTTR Trend</CardTitle>
+            <CardTitle className="text-sm font-medium">Incident Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            {mttrTrend && (
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={mttrTrend.slice(-14)} margin={{ left: -10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={(v: string) => v.slice(5)} />
-                  <YAxis tick={{ fontSize: 10 }} unit="m" />
-                  <Tooltip formatter={(value: number) => [`${value.toFixed(1)} min`]} />
-                  <Line type="monotone" dataKey="mttaMin" stroke="#6366f1" strokeWidth={2} dot={false} name="MTTA" />
-                  <Line type="monotone" dataKey="mttrMin" stroke="#f59e0b" strokeWidth={2} dot={false} name="MTTR" />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={severityData}>
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="count" fill="#10b981" name="Count" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
@@ -144,11 +180,10 @@ export default function Incidents() {
                 <TableHead className="text-xs">Status</TableHead>
                 <TableHead className="text-xs">Age</TableHead>
                 <TableHead className="text-xs">Owner</TableHead>
-                <TableHead className="text-xs">Domain</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {incidents?.map((inc) => (
+              {incidentRows.map((inc) => (
                 <TableRow
                   key={inc.id}
                   className="cursor-pointer hover:bg-slate-50 group"
@@ -166,9 +201,6 @@ export default function Incidents() {
                   </TableCell>
                   <TableCell className="text-xs">{inc.age}</TableCell>
                   <TableCell className="text-xs">{inc.owner}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">{inc.domain}</Badge>
-                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
