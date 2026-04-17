@@ -31,4 +31,42 @@ router.get("/lambdas/runs", async (_req, res): Promise<void> => {
   ]);
 });
 
+router.get("/lambdas/cost-breakdown", async (_req, res): Promise<void> => {
+  res.json({
+    byFunction: [
+      { name: "cust-360-stream-handler",  cost: 412.80 },
+      { name: "sc-shipment-callback",     cost: 318.45 },
+      { name: "fin-treasury-fx-fetcher",  cost: 274.10 },
+      { name: "mkt-segment-updater",      cost: 248.60 },
+      { name: "fin-gl-event-router",      cost: 196.30 },
+      { name: "ops-inventory-notifier",   cost: 172.55 },
+      { name: "sales-order-validator",    cost: 158.90 },
+      { name: "sales-quote-pricer",       cost: 134.20 },
+      { name: "fin-ar-webhook-listener",  cost: 98.40 },
+      { name: "hr-benefits-webhook",      cost: 71.05 },
+    ],
+  });
+});
+
+router.get("/lambdas/cost-performance", async (_req, res): Promise<void> => {
+  const buildSeries = (days: number, base: number, variance: number) =>
+    Array.from({ length: days }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (days - 1 - i));
+      return {
+        date: d.toISOString().slice(0, 10),
+        cost: Number((base + Math.sin(i / 2) * variance + (Math.random() * variance) / 2).toFixed(2)),
+      };
+    });
+
+  const series7 = buildSeries(7, 78, 14);
+  const series30 = buildSeries(30, 76, 18);
+  const today = series7.slice(-1);
+
+  res.json({
+    costVsFunction: series7,
+    costRanges: { today, "7d": series7, "30d": series30 },
+  });
+});
+
 export default router;

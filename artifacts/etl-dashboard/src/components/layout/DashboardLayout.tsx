@@ -78,20 +78,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2 text-sm text-slate-500 hidden sm:flex">
-              <span>Domain:</span>
-              <Select defaultValue="all">
-                <SelectTrigger className="h-8 w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Domains</SelectItem>
-                  <SelectItem value="sales">Sales</SelectItem>
-                  <SelectItem value="marketing">Marketing</SelectItem>
-                  <SelectItem value="finance">Finance</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="w-full max-w-sm hidden md:flex items-center relative ml-auto">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
               <Input
