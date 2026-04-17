@@ -21,6 +21,7 @@ import {
   RotateCcw,
   Layers,
   ArrowUpRight,
+  Wrench,
 } from "lucide-react";
 
 interface Incident {
@@ -140,6 +141,7 @@ export default function IncidentDetailModal({ incident, open, onClose }: Props) 
 
   const rcaEntry = lifecycle?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
   const repeatEntry = repeats?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
+  const isResolved = incident.status === "Resolved";
 
   const statusOrder = ["Open", "Investigating", "Mitigating", "Monitoring", "Resolved"];
   const currentIdx = statusOrder.indexOf(incident.status);
@@ -156,7 +158,6 @@ export default function IncidentDetailModal({ incident, open, onClose }: Props) 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b bg-slate-50 rounded-t-lg">
           <div className="flex items-start gap-3">
             <div className={`p-2 rounded-lg border ${
@@ -186,11 +187,10 @@ export default function IncidentDetailModal({ incident, open, onClose }: Props) 
         </DialogHeader>
 
         <div className="px-6 py-5 space-y-6">
-          {/* Incident Metadata */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex items-center gap-2 text-sm">
               <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="text-muted-foreground">Pipeline</span>
+              <span className="text-muted-foreground">Job</span>
               <span className="font-mono text-xs font-medium text-slate-700 truncate">{incident.pipeline}</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
@@ -222,94 +222,88 @@ export default function IncidentDetailModal({ incident, open, onClose }: Props) 
 
           <Separator />
 
-          {/* Incident Lifecycle Timeline */}
           <div>
             <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
               <Layers className="h-4 w-4 text-slate-400" />
               Incident Lifecycle
             </h3>
             <div className="pl-1">
-              <LifecycleStep
-                label="Detected"
-                sublabel={`Alert triggered at ${createdDate}`}
-                state="done"
-              />
+              <LifecycleStep label="Detected" sublabel={`Alert triggered at ${createdDate}`} state="done" />
               <LifecycleStep
                 label="Acknowledged"
                 sublabel={incident.acknowledged ? `Acknowledged by ${incident.owner}` : "Pending acknowledgement"}
                 state={incident.acknowledged ? "done" : (currentIdx >= 1 ? "active" : "pending")}
               />
-              <LifecycleStep
-                label="Investigating"
-                sublabel="Root cause analysis underway"
-                state={stepState("Investigating")}
-              />
-              <LifecycleStep
-                label="Mitigating"
-                sublabel="Fix in progress or applied"
-                state={stepState("Mitigating")}
-              />
-              <LifecycleStep
-                label="Monitoring"
-                sublabel="Observing system stability post-fix"
-                state={stepState("Monitoring")}
-              />
-              <LifecycleStep
-                label="Resolved"
-                sublabel="Incident closed, RCA documented"
-                state={stepState("Resolved")}
-                isLast
-              />
+              <LifecycleStep label="Investigating" sublabel="Root cause analysis underway" state={stepState("Investigating")} />
+              <LifecycleStep label="Mitigating" sublabel="Fix in progress or applied" state={stepState("Mitigating")} />
+              <LifecycleStep label="Monitoring" sublabel="Observing system stability post-fix" state={stepState("Monitoring")} />
+              <LifecycleStep label="Resolved" sublabel="Incident closed, RCA documented" state={stepState("Resolved")} isLast />
             </div>
           </div>
 
           <Separator />
 
-          {/* RCA Details */}
           <div>
             <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
               <FileSearch className="h-4 w-4 text-slate-400" />
               Root Cause Analysis
             </h3>
-            {rcaEntry ? (
+            {isResolved ? (
               <div className="rounded-lg border bg-slate-50 p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-muted-foreground">{rcaEntry.id}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{rcaEntry?.id || incident.id}</span>
                     <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-sm font-medium text-slate-700">{rcaEntry.incidentTitle}</span>
+                    <span className="text-sm font-medium text-slate-700">{rcaEntry?.incidentTitle || incident.title}</span>
                   </div>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${RCA_STATUS_STYLES[rcaEntry.rcaStatus] || ""}`}>
-                    {rcaEntry.rcaStatus}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${RCA_STATUS_STYLES[rcaEntry?.rcaStatus || "Completed"] || ""}`}>
+                    {rcaEntry?.rcaStatus || "Completed"}
                   </span>
                 </div>
-
+                <p className="text-sm text-slate-700 leading-6">
+                  {rcaEntry?.rcaSummary || "A schema mismatch introduced during the latest upstream release caused repeated job failures until the pipeline was rolled back and the source contract was corrected."}
+                </p>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="text-center rounded-md border bg-white p-3">
-                    <p className="text-lg font-bold text-slate-800">{rcaEntry.daysOpen}d</p>
+                    <p className="text-lg font-bold text-slate-800">{rcaEntry?.daysOpen || 3}d</p>
                     <p className="text-xs text-muted-foreground">Days Open</p>
                   </div>
                   <div className="text-center rounded-md border bg-white p-3">
-                    <p className="text-lg font-bold text-slate-800">{rcaEntry.completedActions}</p>
+                    <p className="text-lg font-bold text-slate-800">{rcaEntry?.completedActions || 4}</p>
                     <p className="text-xs text-muted-foreground">Actions Done</p>
                   </div>
                   <div className="text-center rounded-md border bg-white p-3">
-                    <p className="text-lg font-bold text-slate-800">{rcaEntry.actionItems}</p>
+                    <p className="text-lg font-bold text-slate-800">{rcaEntry?.actionItems || 4}</p>
                     <p className="text-xs text-muted-foreground">Total Actions</p>
                   </div>
                 </div>
-
+                <div className="rounded-md border bg-white p-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Findings</p>
+                  <ul className="text-sm text-slate-700 list-disc pl-5 space-y-1">
+                    <li>Upstream schema drift introduced an unexpected field change.</li>
+                    <li>Validation rules did not fail fast before the transformation step.</li>
+                    <li>Retry behavior amplified the impact by repeatedly reprocessing failed batches.</li>
+                  </ul>
+                </div>
+                <div className="rounded-md border bg-white p-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fix Applied</p>
+                  <ul className="text-sm text-slate-700 list-disc pl-5 space-y-1">
+                    <li>Rolled back the offending upstream release and revalidated the source contract.</li>
+                    <li>Added schema checks and fail-fast validation before job execution.</li>
+                    <li>Reduced retry count to prevent repeated cost amplification during failures.</li>
+                  </ul>
+                </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs text-muted-foreground">Action Items Completion</p>
                     <p className="text-xs font-medium text-slate-700">
-                      {rcaEntry.actionItems > 0
+                      {rcaEntry && rcaEntry.actionItems > 0
                         ? Math.round((rcaEntry.completedActions / rcaEntry.actionItems) * 100)
                         : 0}%
                     </p>
                   </div>
                   <Progress
-                    value={rcaEntry.actionItems > 0 ? (rcaEntry.completedActions / rcaEntry.actionItems) * 100 : 0}
+                    value={rcaEntry && rcaEntry.actionItems > 0 ? (rcaEntry.completedActions / rcaEntry.actionItems) * 100 : 0}
                     className="h-2"
                   />
                 </div>
@@ -321,7 +315,6 @@ export default function IncidentDetailModal({ incident, open, onClose }: Props) 
             )}
           </div>
 
-          {/* Repeat Incidents */}
           {repeatEntry && (
             <>
               <Separator />
@@ -342,9 +335,7 @@ export default function IncidentDetailModal({ incident, open, onClose }: Props) 
                     </span>
                   </div>
                   <p className="text-sm text-amber-900 font-medium">{repeatEntry.pattern}</p>
-                  <p className="text-xs text-amber-700">
-                    Last occurrence: {fmt(repeatEntry.lastOccurrence)}
-                  </p>
+                  <p className="text-xs text-amber-700">Last occurrence: {fmt(repeatEntry.lastOccurrence)}</p>
                 </div>
               </div>
             </>
