@@ -30,9 +30,21 @@ export default function Costs() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Cost Insights</h2>
-        <p className="text-muted-foreground">Infrastructure spend by jobs and daily trends</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Cost Insights</h2>
+          <p className="text-muted-foreground">Infrastructure spend by jobs and daily trends</p>
+        </div>
+        <Select value={dateRange} onValueChange={setDateRange}>
+          <SelectTrigger className="h-9 w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="today">Today</SelectItem>
+            <SelectItem value="7d">Last 7 Days</SelectItem>
+            <SelectItem value="30d">Last 30 Days</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -107,19 +119,7 @@ export default function Costs() {
 
         <Card className="lg:col-span-3">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-sm font-medium">Daily Cost Trend</CardTitle>
-              <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger className="h-9 w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="7d">Last 7 Days</SelectItem>
-                  <SelectItem value="30d">Last 30 Days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <CardTitle className="text-sm font-medium">Daily Cost Trend</CardTitle>
           </CardHeader>
           <CardContent>
             {perf && (
