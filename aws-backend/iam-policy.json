@@ -1,0 +1,60 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "GlueRead",
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetJobs",
+        "glue:GetJob",
+        "glue:GetJobRuns",
+        "glue:GetJobRun"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LambdaRead",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:ListFunctions",
+        "lambda:GetFunction",
+        "lambda:ListTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudWatchRead",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:GetMetricStatistics",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:ListMetrics",
+        "logs:DescribeLogStreams",
+        "logs:GetLogEvents"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IncidentsRead",
+      "Effect": "Allow",
+      "Action": [
+        "ssm-incidents:ListIncidentRecords",
+        "ssm-incidents:GetIncidentRecord",
+        "ssm-incidents:ListTimelineEvents"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CostExplorerRead",
+      "Effect": "Allow",
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetCostForecast",
+        "budgets:DescribeBudgets",
+        "budgets:ViewBudget",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
