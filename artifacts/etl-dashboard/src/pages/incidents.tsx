@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import IncidentDetailModal from "@/components/incidents/IncidentDetailModal";
 
 interface Incident {
@@ -176,7 +176,7 @@ export default function Incidents() {
               <TableRow>
                 <TableHead className="text-xs">ID</TableHead>
                 <TableHead className="text-xs">Title</TableHead>
-                <TableHead className="text-xs">Pipeline</TableHead>
+                <TableHead className="text-xs">Jobs</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
                 <TableHead className="text-xs">Age</TableHead>
                 <TableHead className="text-xs">Owner</TableHead>
