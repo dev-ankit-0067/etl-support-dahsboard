@@ -12,8 +12,8 @@ import {
   DollarSign,
   Plus,
   Minus,
-  Database,
   AlertCircle,
+  Cpu,
 } from "lucide-react";
 
 interface JobRun {
@@ -74,11 +74,10 @@ function fmtTime(iso: string) {
   return iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
 }
 
-function fmtRecords(n: number) {
-  if (!n) return "—";
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return n.toString();
+function fmtMs(ms: number) {
+  if (!ms) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
 }
 
 function JobHistorySubsection({ jobName }: { jobName: string }) {
@@ -122,7 +121,6 @@ function JobHistorySubsection({ jobName }: { jobName: string }) {
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Status</TableHead>
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Start Time</TableHead>
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Duration</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Records</TableHead>
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500 text-right">Cost</TableHead>
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Error</TableHead>
           </TableRow>
@@ -141,13 +139,102 @@ function JobHistorySubsection({ jobName }: { jobName: string }) {
                   {r.durationMin.toFixed(1)}m
                 </span>
               </TableCell>
+              <TableCell className="text-xs text-right font-mono">${r.cost.toFixed(2)}</TableCell>
+              <TableCell className="text-[11px] text-red-600 font-mono max-w-[280px] truncate">
+                {r.errorMessage ? (
+                  <span className="flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    <span className="truncate" title={r.errorMessage}>{r.errorMessage}</span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+interface LambdaHistoryItem {
+  id: string;
+  status: string;
+  startTime: string;
+  durationMs: number;
+  cost: number;
+  memoryMb: number;
+  errorMessage: string | null;
+}
+
+function LambdaHistorySubsection({ functionName }: { functionName: string }) {
+  const { data, isLoading } = useQuery<LambdaHistoryItem[]>({
+    queryKey: ["lambda-history", functionName],
+    queryFn: async () => {
+      const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/lambdas/history/${functionName}`);
+      if (!res.ok) throw new Error("Failed to load");
+      return res.json();
+    },
+  });
+
+  if (isLoading || !data) {
+    return <div className="px-6 py-4 text-xs text-muted-foreground">Loading invocation history…</div>;
+  }
+
+  const totalCost = data.reduce((s, r) => s + r.cost, 0);
+  const success = data.filter((r) => r.status === "Success").length;
+  const successRate = data.length ? Math.round((success / data.length) * 100) : 0;
+  const avgMs = data.length ? data.reduce((s, r) => s + r.durationMs, 0) / data.length : 0;
+
+  return (
+    <div className="bg-slate-50 border-t border-b">
+      <div className="px-6 py-3 border-b bg-white/60 flex items-center gap-6 text-xs">
+        <span className="font-mono text-slate-700">{functionName}</span>
+        <span className="text-muted-foreground">
+          Success rate: <span className="font-semibold text-slate-700">{successRate}%</span>
+        </span>
+        <span className="text-muted-foreground">
+          Avg duration: <span className="font-semibold text-slate-700">{fmtMs(Math.round(avgMs))}</span>
+        </span>
+        <span className="text-muted-foreground">
+          Total cost (last {data.length}): <span className="font-semibold text-slate-700">${totalCost.toFixed(4)}</span>
+        </span>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-slate-100/60 hover:bg-slate-100/60">
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Invocation ID</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Status</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Start Time</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Duration</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Memory</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500 text-right">Cost</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Error</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((r) => (
+            <TableRow key={r.id} className="hover:bg-white">
+              <TableCell className="text-xs font-mono text-muted-foreground">{r.id}</TableCell>
+              <TableCell>{statusBadge(r.status)}</TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {new Date(r.startTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </TableCell>
               <TableCell className="text-xs">
                 <span className="flex items-center gap-1">
-                  <Database className="h-3 w-3 text-muted-foreground" />
-                  {fmtRecords(r.recordsProcessed)}
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  {fmtMs(r.durationMs)}
                 </span>
               </TableCell>
-              <TableCell className="text-xs text-right font-mono">${r.cost.toFixed(2)}</TableCell>
+              <TableCell className="text-xs">
+                <span className="flex items-center gap-1">
+                  <Cpu className="h-3 w-3 text-muted-foreground" />
+                  {r.memoryMb} MB
+                </span>
+              </TableCell>
+              <TableCell className="text-xs text-right font-mono">${r.cost.toFixed(4)}</TableCell>
               <TableCell className="text-[11px] text-red-600 font-mono max-w-[280px] truncate">
                 {r.errorMessage ? (
                   <span className="flex items-center gap-1">
@@ -211,14 +298,14 @@ export default function ExecutiveOverview() {
   const totalSubtitle = isLambda ? "Across all Lambda functions" : "Across all pipelines";
   const tableTitle = isLambda ? "Active Invocations" : "Active Jobs";
   const idHeader = isLambda ? "Invocation ID" : "Job ID";
-  const nameHeader = "Jobs";
+  const nameHeader = isLambda ? "Function Name" : "Job Name";
   const costHeader = isLambda ? "Cost/Invocation" : "Cost/Run";
 
   const jobRuns: JobRun[] = (runs as JobRun[] | undefined) ?? [];
 
   type Row = { id: string; name: string; status: string; startTime: string; endTime: string; duration: string; cost: number; expandable: boolean };
   const rows: Row[] = isLambda
-    ? lambdaRuns.map((r) => ({ id: r.id, name: r.functionName, status: r.status, startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun, expandable: false }))
+    ? lambdaRuns.map((r) => ({ id: r.id, name: r.functionName, status: r.status, startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun, expandable: true }))
     : jobRuns.map((r) => ({ id: r.id, name: r.pipelineName, status: r.status, startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun, expandable: true }));
 
   return (
@@ -391,7 +478,9 @@ export default function ExecutiveOverview() {
                     {isExpanded && row.expandable && (
                       <TableRow className="hover:bg-transparent">
                         <TableCell colSpan={8} className="p-0">
-                          <JobHistorySubsection jobName={row.name} />
+                          {isLambda
+                            ? <LambdaHistorySubsection functionName={row.name} />
+                            : <JobHistorySubsection jobName={row.name} />}
                         </TableCell>
                       </TableRow>
                     )}

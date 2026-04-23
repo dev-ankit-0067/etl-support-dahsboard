@@ -31,6 +31,58 @@ router.get("/lambdas/runs", async (_req, res): Promise<void> => {
   ]);
 });
 
+const lambdaInvocationHistory: Record<string, Array<{ id: string; status: string; startTime: string; durationMs: number; cost: number; memoryMb: number; errorMessage: string | null }>> = {
+  "fin-gl-event-router": [
+    { id: "INV-7821",  status: "Failed",   startTime: "2026-04-14T08:11:00Z", durationMs: 2120, cost: 0.0042, memoryMb: 512, errorMessage: "TimeoutError: connection to RDS timed out after 2000ms" },
+    { id: "INV-7821a", status: "Success",  startTime: "2026-04-14T07:11:00Z", durationMs: 184,  cost: 0.0009, memoryMb: 512, errorMessage: null },
+    { id: "INV-7821b", status: "Success",  startTime: "2026-04-14T06:11:00Z", durationMs: 192,  cost: 0.0010, memoryMb: 512, errorMessage: null },
+    { id: "INV-7821c", status: "Failed",   startTime: "2026-04-14T05:11:00Z", durationMs: 2050, cost: 0.0041, memoryMb: 512, errorMessage: "TimeoutError: handshake failed" },
+    { id: "INV-7821d", status: "Success",  startTime: "2026-04-14T04:11:00Z", durationMs: 178,  cost: 0.0009, memoryMb: 512, errorMessage: null },
+  ],
+  "sales-order-validator": [
+    { id: "INV-7820",  status: "Running",  startTime: "2026-04-14T09:02:00Z", durationMs: 0,    cost: 0.0028, memoryMb: 256, errorMessage: null },
+    { id: "INV-7820a", status: "Success",  startTime: "2026-04-14T08:02:00Z", durationMs: 412,  cost: 0.0021, memoryMb: 256, errorMessage: null },
+    { id: "INV-7820b", status: "Success",  startTime: "2026-04-14T07:02:00Z", durationMs: 388,  cost: 0.0019, memoryMb: 256, errorMessage: null },
+    { id: "INV-7820c", status: "Success",  startTime: "2026-04-14T06:02:00Z", durationMs: 421,  cost: 0.0021, memoryMb: 256, errorMessage: null },
+    { id: "INV-7820d", status: "Success",  startTime: "2026-04-14T05:02:00Z", durationMs: 405,  cost: 0.0020, memoryMb: 256, errorMessage: null },
+  ],
+  "mkt-segment-updater": [
+    { id: "INV-7819",  status: "Failed",   startTime: "2026-04-14T07:48:00Z", durationMs: 5400, cost: 0.0061, memoryMb: 1024, errorMessage: "ValidationError: required field 'segment_id' missing" },
+    { id: "INV-7819a", status: "Failed",   startTime: "2026-04-14T06:48:00Z", durationMs: 5210, cost: 0.0058, memoryMb: 1024, errorMessage: "ValidationError: required field 'segment_id' missing" },
+    { id: "INV-7819b", status: "Success",  startTime: "2026-04-14T05:48:00Z", durationMs: 1820, cost: 0.0021, memoryMb: 1024, errorMessage: null },
+    { id: "INV-7819c", status: "Success",  startTime: "2026-04-14T04:48:00Z", durationMs: 1755, cost: 0.0020, memoryMb: 1024, errorMessage: null },
+    { id: "INV-7819d", status: "Success",  startTime: "2026-04-14T03:48:00Z", durationMs: 1890, cost: 0.0022, memoryMb: 1024, errorMessage: null },
+  ],
+  "sc-shipment-callback": [
+    { id: "INV-7813",  status: "Timed Out", startTime: "2026-04-14T08:32:00Z", durationMs: 30000, cost: 0.0190, memoryMb: 512, errorMessage: "Task timed out after 30.00 seconds" },
+    { id: "INV-7813a", status: "Timed Out", startTime: "2026-04-14T07:32:00Z", durationMs: 30000, cost: 0.0190, memoryMb: 512, errorMessage: "Task timed out after 30.00 seconds" },
+    { id: "INV-7813b", status: "Success",   startTime: "2026-04-14T06:32:00Z", durationMs: 1240,  cost: 0.0014, memoryMb: 512, errorMessage: null },
+    { id: "INV-7813c", status: "Success",   startTime: "2026-04-14T05:32:00Z", durationMs: 1180,  cost: 0.0013, memoryMb: 512, errorMessage: null },
+    { id: "INV-7813d", status: "Success",   startTime: "2026-04-14T04:32:00Z", durationMs: 1305,  cost: 0.0014, memoryMb: 512, errorMessage: null },
+  ],
+  "fin-treasury-fx-fetcher": [
+    { id: "INV-7810",  status: "Failed",   startTime: "2026-04-14T07:05:00Z", durationMs: 8100, cost: 0.0072, memoryMb: 768, errorMessage: "HTTPError: 503 Service Unavailable from fx provider" },
+    { id: "INV-7810a", status: "Failed",   startTime: "2026-04-14T06:05:00Z", durationMs: 8200, cost: 0.0073, memoryMb: 768, errorMessage: "HTTPError: 503 Service Unavailable from fx provider" },
+    { id: "INV-7810b", status: "Success",  startTime: "2026-04-14T05:05:00Z", durationMs: 920,  cost: 0.0010, memoryMb: 768, errorMessage: null },
+    { id: "INV-7810c", status: "Success",  startTime: "2026-04-14T04:05:00Z", durationMs: 875,  cost: 0.0010, memoryMb: 768, errorMessage: null },
+    { id: "INV-7810d", status: "Success",  startTime: "2026-04-14T03:05:00Z", durationMs: 950,  cost: 0.0011, memoryMb: 768, errorMessage: null },
+  ],
+};
+
+const defaultLambdaHistory = (name: string) => [
+  { id: "INV-0001", status: "Success", startTime: "2026-04-14T05:00:00Z", durationMs: 410, cost: 0.0020, memoryMb: 256, errorMessage: null },
+  { id: "INV-0002", status: "Success", startTime: "2026-04-14T04:00:00Z", durationMs: 398, cost: 0.0019, memoryMb: 256, errorMessage: null },
+  { id: "INV-0003", status: "Success", startTime: "2026-04-14T03:00:00Z", durationMs: 425, cost: 0.0021, memoryMb: 256, errorMessage: null },
+  { id: "INV-0004", status: "Success", startTime: "2026-04-14T02:00:00Z", durationMs: 388, cost: 0.0019, memoryMb: 256, errorMessage: null },
+  { id: "INV-0005", status: "Failed",  startTime: "2026-04-14T01:00:00Z", durationMs: 1820, cost: 0.0034, memoryMb: 256, errorMessage: `RuntimeError: unexpected event payload in ${name}` },
+];
+
+router.get("/lambdas/history/:functionName", async (req, res): Promise<void> => {
+  const { functionName } = req.params;
+  const history = lambdaInvocationHistory[functionName] ?? defaultLambdaHistory(functionName);
+  res.json(history);
+});
+
 router.get("/lambdas/cost-breakdown", async (_req, res): Promise<void> => {
   res.json({
     byFunction: [
