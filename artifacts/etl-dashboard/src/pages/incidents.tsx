@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react";
+import { useAccount } from "@/contexts/AccountContext";
 import {
   useGetIncidentSummary,
   useGetActiveIncidents,
@@ -236,17 +237,19 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
 export default function Incidents() {
   const { data: summary } = useGetIncidentSummary();
   const { data: incidents } = useGetActiveIncidents();
+  const { account } = useAccount();
+  const accountScale = account.scale;
   const [dateRange, setDateRange] = useState("today");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (!summary) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
-  const mult = dateRange === "30d" ? 30 : dateRange === "7d" ? 7 : 1;
+  const mult = (dateRange === "30d" ? 30 : dateRange === "7d" ? 7 : 1) * accountScale;
   const scaled = {
-    p1: Math.round(summary.openByP1 * mult * 0.8),
-    p2: Math.round(summary.openByP2 * mult * 0.9),
-    p3: Math.round(summary.openByP3 * mult),
-    p4: Math.round(summary.openByP4 * mult),
+    p1: Math.max(0, Math.round(summary.openByP1 * mult * 0.8)),
+    p2: Math.max(0, Math.round(summary.openByP2 * mult * 0.9)),
+    p3: Math.max(0, Math.round(summary.openByP3 * mult)),
+    p4: Math.max(0, Math.round(summary.openByP4 * mult)),
   };
 
   const priorityData = [
@@ -279,7 +282,10 @@ export default function Incidents() {
   ];
 
   const activeRows: Incident[] = (incidents as Incident[] | undefined)?.filter((inc) => inc.status !== "Resolved") ?? [];
-  const incidentRows: Incident[] = [...activeRows, ...closedIncidents];
+  const allRows: Incident[] = [...activeRows, ...closedIncidents];
+  // Slice incidents proportional to selected account
+  const rowKeep = account.id === "all" ? allRows.length : Math.max(1, Math.ceil(allRows.length * accountScale));
+  const incidentRows: Incident[] = allRows.slice(0, rowKeep);
 
   // Status pie data — count incidents grouped by status
   const statusCounts = incidentRows.reduce<Record<string, number>>((acc, inc) => {

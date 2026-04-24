@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import ExecutiveOverview from "@/pages/executive-overview";
 import Incidents from "@/pages/incidents";
 import Costs from "@/pages/costs";
+import { AccountProvider } from "@/contexts/AccountContext";
 
 const queryClient = new QueryClient();
 
@@ -27,10 +28,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
+        <AccountProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </AccountProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

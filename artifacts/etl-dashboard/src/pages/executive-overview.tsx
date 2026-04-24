@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useGetOverviewKpis, useGetPipelineRuns } from "@workspace/api-client-react";
+import { useAccount } from "@/contexts/AccountContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -256,9 +257,14 @@ function LambdaHistorySubsection({ functionName }: { functionName: string }) {
 export default function ExecutiveOverview() {
   const { data: kpis } = useGetOverviewKpis();
   const { data: runs } = useGetPipelineRuns();
+  const { account } = useAccount();
+  const accountScale = account.scale;
   const [dateRange, setDateRange] = useState("today");
   const [resourceType, setResourceType] = useState<"job" | "lambda">("job");
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Reset expansion when switching account
+  useEffect(() => { setExpanded(null); }, [account.id]);
 
   const [lambdaKpis, setLambdaKpis] = useState<LambdaKpis | null>(null);
   const [lambdaRuns, setLambdaRuns] = useState<LambdaRun[]>([]);
@@ -279,18 +285,18 @@ export default function ExecutiveOverview() {
 
   if (!kpis) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
-  const mult = DATE_MULTIPLIERS[dateRange] ?? 1;
+  const mult = (DATE_MULTIPLIERS[dateRange] ?? 1) * accountScale;
   const isLambda = resourceType === "lambda";
 
   const totalCount = isLambda
-    ? Math.round((lambdaKpis?.totalFunctions ?? 0) * mult * (dateRange === "today" ? 1 : 0.95))
-    : Math.round(kpis.totalPipelines * mult * (dateRange === "today" ? 1 : 0.9));
+    ? Math.max(0, Math.round((lambdaKpis?.totalFunctions ?? 0) * mult * (dateRange === "today" ? 1 : 0.95)))
+    : Math.max(0, Math.round(kpis.totalPipelines * mult * (dateRange === "today" ? 1 : 0.9)));
   const healthyCount = isLambda
-    ? Math.round((lambdaKpis?.healthy ?? 0) * mult * (dateRange === "today" ? 1 : 0.92))
-    : Math.round(kpis.healthy * mult * (dateRange === "today" ? 1 : 0.88));
+    ? Math.max(0, Math.round((lambdaKpis?.healthy ?? 0) * mult * (dateRange === "today" ? 1 : 0.92)))
+    : Math.max(0, Math.round(kpis.healthy * mult * (dateRange === "today" ? 1 : 0.88)));
   const failedCount = isLambda
-    ? Math.round((lambdaKpis?.withErrors ?? 0) * mult * (dateRange === "today" ? 1 : 1.08))
-    : Math.round((kpis.failed + kpis.degraded) * mult * (dateRange === "today" ? 1 : 1.05));
+    ? Math.max(0, Math.round((lambdaKpis?.withErrors ?? 0) * mult * (dateRange === "today" ? 1 : 1.08)))
+    : Math.max(0, Math.round((kpis.failed + kpis.degraded) * mult * (dateRange === "today" ? 1 : 1.05)));
 
   const totalLabel = isLambda ? "Total Functions" : "Total Jobs";
   const healthyLabel = isLambda ? "Healthy Functions" : "Healthy Jobs";
@@ -304,9 +310,12 @@ export default function ExecutiveOverview() {
   const jobRuns: JobRun[] = (runs as JobRun[] | undefined) ?? [];
 
   type Row = { id: string; name: string; status: string; startTime: string; endTime: string; duration: string; cost: number; expandable: boolean };
-  const rows: Row[] = isLambda
+  const allRows: Row[] = isLambda
     ? lambdaRuns.map((r) => ({ id: r.id, name: r.functionName, status: r.status, startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun, expandable: true }))
     : jobRuns.map((r) => ({ id: r.id, name: r.pipelineName, status: r.status, startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun, expandable: true }));
+  // Slice rows proportional to selected account so the table reflects the scope
+  const rowKeep = account.id === "all" ? allRows.length : Math.max(1, Math.ceil(allRows.length * accountScale));
+  const rows: Row[] = allRows.slice(0, rowKeep);
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] gap-3">

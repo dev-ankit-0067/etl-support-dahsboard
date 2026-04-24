@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGetCostKpis } from "@workspace/api-client-react";
+import { useAccount } from "@/contexts/AccountContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,6 +24,8 @@ type ServiceTrendData = Record<RangeKey, ServiceTrendRange>;
 
 export default function Costs() {
   const { data: kpis } = useGetCostKpis();
+  const { account } = useAccount();
+  const accountScale = account.scale;
   const [service, setService] = useState<ServiceKey>("all");
   const [range, setRange] = useState<RangeKey>("7d");
   const [serviceTrend, setServiceTrend] = useState<ServiceTrendData | null>(null);
@@ -39,14 +42,15 @@ export default function Costs() {
     if (!serviceTrend) return [];
     const r = serviceTrend[range];
     if (!r) return [];
-    // Combine into a single array keyed by date so multiple lines can share an axis
+    // Combine into a single array keyed by date so multiple lines can share an axis,
+    // scaling each series by the selected AWS account's portion of total spend.
     return r.glue.map((g, i) => ({
       date: g.date,
-      glue: g.cost,
-      lambda: r.lambda[i]?.cost ?? 0,
-      all: r.all[i]?.cost ?? 0,
+      glue: Math.round(g.cost * accountScale * 100) / 100,
+      lambda: Math.round((r.lambda[i]?.cost ?? 0) * accountScale * 100) / 100,
+      all: Math.round((r.all[i]?.cost ?? 0) * accountScale * 100) / 100,
     }));
-  }, [serviceTrend, range]);
+  }, [serviceTrend, range, accountScale]);
 
   if (!kpis) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
@@ -58,12 +62,12 @@ export default function Costs() {
   const lastMonthLabel = new Date(today.getFullYear(), today.getMonth() - 1, 1)
     .toLocaleString("en-US", { month: "long", year: "numeric" });
 
-  const totalMtd = kpis.totalCostMtd;
+  const totalMtd = Math.round(kpis.totalCostMtd * accountScale);
   const lastMonthSamePeriod = Math.round(totalMtd * 0.92);                   // -8% YoY improvement
   const forecastThisMonth = Math.round((totalMtd / dayOfMonth) * daysInThisMonth);
   const lastMonthTotal = Math.round(lastMonthSamePeriod * (daysInThisMonth / dayOfMonth) * 1.04);
-  const budget = kpis.budget;
-  const budgetPercent = (totalMtd / budget) * 100;
+  const budget = Math.round(kpis.budget * accountScale);
+  const budgetPercent = budget > 0 ? (totalMtd / budget) * 100 : 0;
 
   const mtdVsLastPct = ((totalMtd - lastMonthSamePeriod) / lastMonthSamePeriod) * 100;
   const forecastVsLastPct = ((forecastThisMonth - lastMonthTotal) / lastMonthTotal) * 100;

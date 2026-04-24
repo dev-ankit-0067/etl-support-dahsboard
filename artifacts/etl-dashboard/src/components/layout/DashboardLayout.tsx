@@ -1,13 +1,14 @@
 import { Link, useLocation } from "wouter";
 import {
-  BarChart3,
+  ShieldCheck,
   AlertTriangle,
   Search,
   Settings,
   Bell,
   RefreshCw,
   LayoutDashboard,
-  DollarSign
+  DollarSign,
+  Cloud,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,9 +19,11 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { useAccount } from "@/contexts/AccountContext";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { account, accounts, setAccountId } = useAccount();
 
   const navItems = [
     { name: "Executive Overview", path: "/", icon: LayoutDashboard },
@@ -34,8 +37,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <div className="hidden md:flex w-64 flex-col border-r bg-white">
         <div className="flex h-14 items-center border-b px-4">
           <div className="flex items-center gap-2 font-semibold text-primary">
-            <BarChart3 className="h-5 w-5" />
-            <span>ETL OpsCenter</span>
+            <ShieldCheck className="h-5 w-5" />
+            <span>OpsGuardian</span>
           </div>
         </div>
         <div className="flex-1 overflow-auto py-4">
@@ -63,10 +66,39 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center gap-4 border-b bg-white px-4 lg:px-6">
-          <div className="flex flex-1 items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <span>Environment:</span>
+        <header className="flex h-14 items-center gap-3 border-b bg-white px-4 lg:px-6">
+          <div className="flex flex-1 items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 text-sm text-slate-500 shrink-0">
+              <Cloud className="h-3.5 w-3.5 text-slate-400" />
+              <span className="whitespace-nowrap">AWS Account:</span>
+              <Select value={account.id} onValueChange={setAccountId}>
+                <SelectTrigger className="h-8 w-[200px]">
+                  <SelectValue>
+                    <span className="flex items-center gap-2 truncate">
+                      <span className="font-medium text-slate-700 truncate">{account.label}</span>
+                      {account.id !== "all" && (
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0">{account.accountId}</span>
+                      )}
+                    </span>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      <span className="flex items-center justify-between gap-3 w-full">
+                        <span className="font-medium">{a.label}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {a.id === "all" ? "all regions" : `${a.accountId} · ${a.region}`}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="h-5 w-px bg-slate-200 shrink-0" />
+            <div className="flex items-center gap-2 text-sm text-slate-500 shrink-0">
+              <span className="whitespace-nowrap">Environment:</span>
               <Select defaultValue="prod">
                 <SelectTrigger className="h-8 w-[120px]">
                   <SelectValue />
