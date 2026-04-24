@@ -8,7 +8,7 @@ import {
   RefreshCw,
   LayoutDashboard,
   DollarSign,
-  Cloud,
+  FolderKanban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,12 +66,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top row: Projects (AWS account) selector */}
-        <div className="flex h-10 items-center gap-2 border-b bg-slate-50/80 px-4 lg:px-6 text-sm text-slate-500">
-          <Cloud className="h-3.5 w-3.5 text-slate-400" />
+        {/* Top row: Projects selector — centered */}
+        <div className="flex h-10 items-center justify-center gap-2 border-b bg-slate-50/80 px-4 lg:px-6 text-sm text-slate-500">
+          <FolderKanban className="h-3.5 w-3.5 text-slate-400" />
           <span className="whitespace-nowrap font-medium text-slate-600">Projects:</span>
           <Select value={account.id} onValueChange={setAccountId}>
-            <SelectTrigger className="h-7 w-[220px] bg-white">
+            <SelectTrigger className="h-7 w-[260px] bg-white">
               <SelectValue>
                 <span className="flex items-center gap-2 truncate">
                   <span className="font-medium text-slate-700 truncate">{account.label}</span>

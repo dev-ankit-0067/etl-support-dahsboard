@@ -9,11 +9,13 @@ export interface AwsAccount {
 }
 
 export const AWS_ACCOUNTS: AwsAccount[] = [
-  { id: "all", label: "All Accounts", accountId: "—", scale: 1.0, region: "global" },
-  { id: "prod-payments", label: "prod-payments", accountId: "957382641029", scale: 0.42, region: "us-east-1" },
-  { id: "prod-data-platform", label: "prod-data-platform", accountId: "203847561234", scale: 0.30, region: "us-east-1" },
-  { id: "prod-analytics-ml", label: "prod-analytics-ml", accountId: "748392051023", scale: 0.18, region: "us-west-2" },
-  { id: "dev-sandbox", label: "dev-sandbox", accountId: "512874039128", scale: 0.10, region: "us-east-2" },
+  { id: "all", label: "All Projects", accountId: "—", scale: 1.0, region: "global" },
+  { id: "payments-platform", label: "Payments Platform", accountId: "PRJ-1042", scale: 0.32, region: "us-east-1" },
+  { id: "customer-data-hub", label: "Customer Data Hub", accountId: "PRJ-1108", scale: 0.24, region: "us-east-1" },
+  { id: "analytics-ml", label: "Analytics & ML", accountId: "PRJ-1175", scale: 0.18, region: "us-west-2" },
+  { id: "marketing-attribution", label: "Marketing Attribution", accountId: "PRJ-1213", scale: 0.12, region: "us-east-1" },
+  { id: "supply-chain-ops", label: "Supply Chain Ops", accountId: "PRJ-1287", scale: 0.09, region: "us-east-2" },
+  { id: "sandbox-dev", label: "Sandbox / Dev", accountId: "PRJ-9001", scale: 0.05, region: "us-east-2" },
 ];
 
 interface AccountContextValue {
