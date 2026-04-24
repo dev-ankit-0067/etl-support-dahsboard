@@ -66,37 +66,38 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Top row: Projects (AWS account) selector */}
+        <div className="flex h-10 items-center gap-2 border-b bg-slate-50/80 px-4 lg:px-6 text-sm text-slate-500">
+          <Cloud className="h-3.5 w-3.5 text-slate-400" />
+          <span className="whitespace-nowrap font-medium text-slate-600">Projects:</span>
+          <Select value={account.id} onValueChange={setAccountId}>
+            <SelectTrigger className="h-7 w-[220px] bg-white">
+              <SelectValue>
+                <span className="flex items-center gap-2 truncate">
+                  <span className="font-medium text-slate-700 truncate">{account.label}</span>
+                  {account.id !== "all" && (
+                    <span className="text-[10px] text-slate-400 font-mono shrink-0">{account.accountId}</span>
+                  )}
+                </span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  <span className="flex items-center justify-between gap-3 w-full">
+                    <span className="font-medium">{a.label}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {a.id === "all" ? "all regions" : `${a.accountId} · ${a.region}`}
+                    </span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <header className="flex h-14 items-center gap-3 border-b bg-white px-4 lg:px-6">
           <div className="flex flex-1 items-center gap-3 min-w-0">
-            <div className="flex items-center gap-2 text-sm text-slate-500 shrink-0">
-              <Cloud className="h-3.5 w-3.5 text-slate-400" />
-              <span className="whitespace-nowrap">AWS Account:</span>
-              <Select value={account.id} onValueChange={setAccountId}>
-                <SelectTrigger className="h-8 w-[200px]">
-                  <SelectValue>
-                    <span className="flex items-center gap-2 truncate">
-                      <span className="font-medium text-slate-700 truncate">{account.label}</span>
-                      {account.id !== "all" && (
-                        <span className="text-[10px] text-slate-400 font-mono shrink-0">{account.accountId}</span>
-                      )}
-                    </span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      <span className="flex items-center justify-between gap-3 w-full">
-                        <span className="font-medium">{a.label}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {a.id === "all" ? "all regions" : `${a.accountId} · ${a.region}`}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="h-5 w-px bg-slate-200 shrink-0" />
             <div className="flex items-center gap-2 text-sm text-slate-500 shrink-0">
               <span className="whitespace-nowrap">Environment:</span>
               <Select defaultValue="prod">
