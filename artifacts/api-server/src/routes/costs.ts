@@ -82,6 +82,65 @@ router.get("/costs/performance", async (_req, res): Promise<void> => {
   });
 });
 
+router.get("/costs/service-trend", async (_req, res): Promise<void> => {
+  // Deterministic seeded pseudo-random series so the chart looks realistic but stable.
+  const seed = (s: string): (() => number) => {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return () => {
+      h += 0x6d2b79f5;
+      let t = h;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  const today = new Date("2026-04-17T00:00:00Z");
+  const fmt = (d: Date): string => d.toISOString().slice(0, 10);
+
+  const buildSeries = (
+    days: number,
+    base: number,
+    amp: number,
+    seedKey: string,
+  ): { date: string; cost: number }[] => {
+    const rng = seed(seedKey + days);
+    const out: { date: string; cost: number }[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setUTCDate(today.getUTCDate() - i);
+      // Weekly seasonality + slow upward drift + noise
+      const weekday = d.getUTCDay();
+      const weekend = weekday === 0 || weekday === 6 ? 0.78 : 1.0;
+      const drift = 1 + (days - i) * 0.0025;
+      const noise = 1 + (rng() - 0.5) * 0.18;
+      out.push({ date: fmt(d), cost: Math.round(base * weekend * drift * noise * 100) / 100 });
+    }
+    // mild amplitude bump
+    return out.map((p) => ({ ...p, cost: Math.round((p.cost + amp * 0.0) * 100) / 100 }));
+  };
+
+  const buildRange = (days: number) => {
+    const glue = buildSeries(days, 2150, 200, "glue");
+    const lambda = buildSeries(days, 1080, 120, "lambda");
+    const all = glue.map((g, i) => ({
+      date: g.date,
+      cost: Math.round((g.cost + lambda[i].cost) * 100) / 100,
+    }));
+    return { glue, lambda, all };
+  };
+
+  res.json({
+    "7d": buildRange(7),
+    "30d": buildRange(30),
+    "60d": buildRange(60),
+  });
+});
+
 router.get("/costs/optimization", async (_req, res): Promise<void> => {
   res.json([
     { type: "Over-provisioned", pipeline: "hr_benefits_sync", description: "Using 4x memory allocation vs actual peak usage. Right-sizing could reduce costs significantly.", estimatedSavings: 420.0, priority: "Medium" },

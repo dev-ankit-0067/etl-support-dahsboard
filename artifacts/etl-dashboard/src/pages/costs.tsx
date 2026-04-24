@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useGetCostKpis, useGetCostBreakdown, useGetCostPerformance } from "@workspace/api-client-react";
+import { useGetCostKpis } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import {
   DollarSign,
   CalendarClock,
@@ -16,51 +15,40 @@ import {
   TrendingDown,
 } from "lucide-react";
 
-const DATE_KEYS: Record<string, string> = { today: "today", "7d": "7d", "30d": "30d" };
-
-interface BreakdownItem { name: string; cost: number }
+type ServiceKey = "all" | "glue" | "lambda";
+type RangeKey = "7d" | "30d" | "60d";
 interface TrendPoint { date: string; cost: number }
-interface LambdaBreakdown { byFunction: BreakdownItem[] }
-interface LambdaPerformance { costVsFunction: TrendPoint[]; costRanges: Record<string, TrendPoint[]> }
+interface ServiceTrendRange { glue: TrendPoint[]; lambda: TrendPoint[]; all: TrendPoint[] }
+type ServiceTrendData = Record<RangeKey, ServiceTrendRange>;
 
 export default function Costs() {
   const { data: kpis } = useGetCostKpis();
-  const { data: breakdown } = useGetCostBreakdown();
-  const { data: perf } = useGetCostPerformance();
-  const [dateRange, setDateRange] = useState("7d");
-  const [resourceType, setResourceType] = useState<"job" | "lambda">("job");
-
-  const [lambdaBreakdown, setLambdaBreakdown] = useState<LambdaBreakdown | null>(null);
-  const [lambdaPerf, setLambdaPerf] = useState<LambdaPerformance | null>(null);
+  const [service, setService] = useState<ServiceKey>("all");
+  const [range, setRange] = useState<RangeKey>("7d");
+  const [serviceTrend, setServiceTrend] = useState<ServiceTrendData | null>(null);
 
   useEffect(() => {
-    if (resourceType !== "lambda") return;
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-    Promise.all([
-      fetch(`${base}/api/lambdas/cost-breakdown`).then((r) => r.json()),
-      fetch(`${base}/api/lambdas/cost-performance`).then((r) => r.json()),
-    ])
-      .then(([b, p]) => { setLambdaBreakdown(b); setLambdaPerf(p); })
-      .catch(() => { setLambdaBreakdown(null); setLambdaPerf(null); });
-  }, [resourceType]);
+    fetch(`${base}/api/costs/service-trend`)
+      .then((r) => r.json())
+      .then((d: ServiceTrendData) => setServiceTrend(d))
+      .catch(() => setServiceTrend(null));
+  }, []);
 
-  const isLambda = resourceType === "lambda";
-
-  const breakdownItems: BreakdownItem[] = useMemo(() => {
-    if (isLambda) return lambdaBreakdown?.byFunction ?? [];
-    return breakdown?.byPipeline ?? [];
-  }, [isLambda, lambdaBreakdown, breakdown]);
-
-  const trendData: TrendPoint[] = useMemo(() => {
-    const key = DATE_KEYS[dateRange] ?? "7d";
-    if (isLambda) return lambdaPerf?.costRanges?.[key] ?? lambdaPerf?.costVsFunction ?? [];
-    return perf?.costRanges?.[key] ?? perf?.costVsPipeline ?? [];
-  }, [isLambda, lambdaPerf, perf, dateRange]);
+  const chartData = useMemo(() => {
+    if (!serviceTrend) return [];
+    const r = serviceTrend[range];
+    if (!r) return [];
+    // Combine into a single array keyed by date so multiple lines can share an axis
+    return r.glue.map((g, i) => ({
+      date: g.date,
+      glue: g.cost,
+      lambda: r.lambda[i]?.cost ?? 0,
+      all: r.all[i]?.cost ?? 0,
+    }));
+  }, [serviceTrend, range]);
 
   if (!kpis) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
-
-  const breakdownTitle = isLambda ? "Cost by Lambda Functions (Top 10)" : "Cost by Jobs (Top 10)";
-  const trendLabel = isLambda ? "Lambda Cost" : "Job Cost";
 
   // ---------- Cost tile calculations ----------
   const today = new Date();
@@ -90,32 +78,9 @@ export default function Costs() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Cost Insights</h2>
-          <p className="text-muted-foreground">Infrastructure spend by {isLambda ? "Lambda functions" : "jobs"} and daily trends</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select value={resourceType} onValueChange={(v) => setResourceType(v as "job" | "lambda")}>
-            <SelectTrigger className="h-9 w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="job">Glue Jobs</SelectItem>
-              <SelectItem value="lambda">Lambda</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={dateRange} onValueChange={setDateRange}>
-            <SelectTrigger className="h-9 w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="7d">Last 7 Days</SelectItem>
-              <SelectItem value="30d">Last 30 Days</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Cost Insights</h2>
+        <p className="text-muted-foreground">Month-to-date AWS spend, forecast, and per-service trend</p>
       </div>
 
       <TooltipProvider delayDuration={150}>
@@ -302,56 +267,99 @@ export default function Costs() {
         </div>
       </TooltipProvider>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">{breakdownTitle}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {breakdownItems.length > 0 && (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={breakdownItems} layout="vertical" margin={{ left: 120 }}>
-                  <XAxis type="number" tickFormatter={(v: number) => `$${v}`} tick={{ fontSize: 10 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={115} />
-                  <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`]} />
-                  <Bar dataKey="cost" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-3">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Daily Cost Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {trendData.length > 0 && (
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={trendData} margin={{ left: 0, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `$${v.toFixed(0)}`} />
-                  <Tooltip
-                    formatter={(value: number) => [`$${value.toLocaleString()}`, trendLabel]}
-                    labelFormatter={(v: string) => `Date: ${v}`}
-                  />
-                  <Legend />
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle className="text-sm font-medium">Cost per Service</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Daily AWS spend by service over the selected period
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={service} onValueChange={(v) => setService(v as ServiceKey)}>
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Services</SelectItem>
+                  <SelectItem value="glue">Glue</SelectItem>
+                  <SelectItem value="lambda">Lambda</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={range} onValueChange={(v) => setRange(v as RangeKey)}>
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7d">Last 7 Days</SelectItem>
+                  <SelectItem value="30d">Last 30 Days</SelectItem>
+                  <SelectItem value="60d">Last 60 Days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={360}>
+              <LineChart data={chartData} margin={{ left: 0, right: 20, top: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(v: string) => v.slice(5)}
+                  minTickGap={range === "60d" ? 24 : 12}
+                />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `$${v.toFixed(0)}`} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [`$${value.toLocaleString()}`, name]}
+                  labelFormatter={(v: string) => `Date: ${v}`}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {(service === "all" || service === "glue") && (
                   <Line
                     type="monotone"
-                    dataKey="cost"
+                    dataKey="glue"
                     stroke="#3b82f6"
-                    strokeWidth={2.5}
-                    dot={{ r: 3, fill: "#3b82f6" }}
+                    strokeWidth={2.25}
+                    dot={range === "7d" ? { r: 3, fill: "#3b82f6" } : false}
                     activeDot={{ r: 5 }}
-                    name={trendLabel}
+                    name="Glue"
                   />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                )}
+                {(service === "all" || service === "lambda") && (
+                  <Line
+                    type="monotone"
+                    dataKey="lambda"
+                    stroke="#8b5cf6"
+                    strokeWidth={2.25}
+                    dot={range === "7d" ? { r: 3, fill: "#8b5cf6" } : false}
+                    activeDot={{ r: 5 }}
+                    name="Lambda"
+                  />
+                )}
+                {service === "all" && (
+                  <Line
+                    type="monotone"
+                    dataKey="all"
+                    stroke="#10b981"
+                    strokeWidth={2.5}
+                    strokeDasharray="5 4"
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                    name="Total"
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[360px] flex items-center justify-center text-sm text-muted-foreground">
+              Loading trend data...
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
