@@ -3,11 +3,9 @@ import {
   useGetIncidentSummary,
   useGetActiveIncidents,
   useGetRcaLifecycle,
-  useGetRepeatIncidents,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BarChart,
@@ -19,7 +17,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from "recharts";
 import {
   Plus,
@@ -28,8 +25,7 @@ import {
   Clock,
   User,
   CheckCircle2,
-  RotateCcw,
-  Wrench,
+  Circle,
   FileSearch,
 } from "lucide-react";
 
@@ -92,18 +88,91 @@ function severityBadge(sev: string) {
   );
 }
 
+const TIMELINE_STAGES = ["Detected", "Acknowledged", "Investigating", "Mitigating", "Monitoring", "Resolved"];
+
+function HorizontalTimeline({ incident }: { incident: Incident }) {
+  // Determine current stage index from incident status
+  const statusToStageIdx: Record<string, number> = {
+    Open: incident.acknowledged ? 1 : 0,
+    Investigating: 2,
+    Mitigating: 3,
+    Monitoring: 4,
+    Resolved: 5,
+  };
+  const currentIdx = statusToStageIdx[incident.status] ?? 0;
+
+  // Compute relative stage timestamps based on createdAt
+  const created = new Date(incident.createdAt).getTime();
+  const stageOffsetsMin = [0, 8, 22, 55, 95, 140];
+  const stageTimes = stageOffsetsMin.map((m) => new Date(created + m * 60_000));
+
+  return (
+    <div className="rounded-md border bg-white p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Clock className="h-4 w-4 text-slate-400" />
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Incident Timeline</p>
+      </div>
+      <div className="relative">
+        {/* Connecting line */}
+        <div className="absolute top-3 left-0 right-0 h-0.5 bg-slate-200" aria-hidden />
+        <div
+          className="absolute top-3 left-0 h-0.5 bg-emerald-400 transition-all"
+          style={{ width: `${(Math.min(currentIdx, TIMELINE_STAGES.length - 1) / (TIMELINE_STAGES.length - 1)) * 100}%` }}
+          aria-hidden
+        />
+
+        {/* Stage markers */}
+        <div className="relative grid grid-cols-6">
+          {TIMELINE_STAGES.map((stage, i) => {
+            const state: "done" | "active" | "pending" =
+              i < currentIdx ? "done" : i === currentIdx ? "active" : "pending";
+            const dotClasses =
+              state === "done"
+                ? "bg-emerald-500 border-emerald-500 text-white"
+                : state === "active"
+                ? "bg-blue-500 border-blue-500 text-white ring-4 ring-blue-100"
+                : "bg-white border-slate-300 text-slate-300";
+            return (
+              <div key={stage} className="flex flex-col items-center text-center px-1">
+                <div className={`relative z-10 flex items-center justify-center w-6 h-6 rounded-full border-2 ${dotClasses}`}>
+                  {state === "done" ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Circle className="h-2 w-2 fill-current" />
+                  )}
+                </div>
+                <p
+                  className={`mt-2 text-[11px] font-medium ${
+                    state === "active"
+                      ? "text-blue-700"
+                      : state === "done"
+                      ? "text-slate-700"
+                      : "text-slate-400"
+                  }`}
+                >
+                  {stage}
+                </p>
+                <p className={`text-[10px] mt-0.5 ${state === "pending" ? "text-slate-300" : "text-muted-foreground"}`}>
+                  {state === "pending"
+                    ? "—"
+                    : stageTimes[i].toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function IncidentDetailSubsection({ incident }: { incident: Incident }) {
   const { data: lifecycle } = useGetRcaLifecycle();
-  const { data: repeats } = useGetRepeatIncidents();
 
   const rcaEntry = lifecycle?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
-  const repeatEntry = repeats?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
   const isResolved = incident.status === "Resolved";
 
-  const completedActions = rcaEntry?.completedActions ?? (isResolved ? 4 : 1);
-  const totalActions = rcaEntry?.actionItems ?? (isResolved ? 4 : 4);
   const daysOpen = rcaEntry?.daysOpen ?? 2;
-  const completionPct = totalActions > 0 ? Math.round((completedActions / totalActions) * 100) : 0;
 
   const rcaSummary = rcaEntry?.rcaSummary ||
     (isResolved
@@ -133,7 +202,10 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
       </div>
 
       {/* Body */}
-      <div className="px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="px-6 py-4 space-y-4">
+        {/* Horizontal timeline */}
+        <HorizontalTimeline incident={incident} />
+
         {/* RCA */}
         <div className="rounded-md border bg-white p-3 space-y-3">
           <div className="flex items-center gap-2">
@@ -150,65 +222,6 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
             </ul>
           </div>
         </div>
-
-        {/* Fix details */}
-        <div className="rounded-md border bg-white p-3 space-y-3">
-          <div className="flex items-center gap-2">
-            <Wrench className="h-4 w-4 text-slate-400" />
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {isResolved ? "Fix Applied" : "Mitigation Plan"}
-            </p>
-          </div>
-          <ul className="text-xs text-slate-700 list-disc pl-5 space-y-1">
-            <li>{isResolved ? "Rolled back" : "Roll back"} the offending upstream release and revalidate the source contract.</li>
-            <li>{isResolved ? "Added" : "Add"} schema checks and fail-fast validation before job execution.</li>
-            <li>{isResolved ? "Reduced" : "Reduce"} retry count to prevent repeated cost amplification during failures.</li>
-          </ul>
-
-          <div className="grid grid-cols-3 gap-2">
-            <div className="text-center rounded border bg-slate-50 p-2">
-              <p className="text-base font-bold text-slate-800 leading-tight">{daysOpen}d</p>
-              <p className="text-[10px] text-muted-foreground">Days Open</p>
-            </div>
-            <div className="text-center rounded border bg-slate-50 p-2">
-              <p className="text-base font-bold text-slate-800 leading-tight">{completedActions}</p>
-              <p className="text-[10px] text-muted-foreground">Done</p>
-            </div>
-            <div className="text-center rounded border bg-slate-50 p-2">
-              <p className="text-base font-bold text-slate-800 leading-tight">{totalActions}</p>
-              <p className="text-[10px] text-muted-foreground">Total Actions</p>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[11px] text-muted-foreground">Action items completion</p>
-              <p className="text-[11px] font-medium text-slate-700">{completionPct}%</p>
-            </div>
-            <Progress value={completionPct} className="h-1.5" />
-          </div>
-        </div>
-
-        {/* Recurring pattern */}
-        {repeatEntry && (
-          <div className="lg:col-span-2 rounded-md border border-amber-200 bg-amber-50 p-3 space-y-1">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <RotateCcw className="h-4 w-4 text-amber-600" />
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Recurring Pattern</p>
-              </div>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border ${
-                repeatEntry.count >= 5
-                  ? "bg-red-100 text-red-700 border-red-200"
-                  : "bg-amber-100 text-amber-700 border-amber-200"
-              }`}>
-                {repeatEntry.count}x
-              </span>
-            </div>
-            <p className="text-sm text-amber-900 font-medium">{repeatEntry.pattern}</p>
-            <p className="text-xs text-amber-700">Last occurrence: {fmt(repeatEntry.lastOccurrence)}</p>
-          </div>
-        )}
       </div>
     </div>
   );
