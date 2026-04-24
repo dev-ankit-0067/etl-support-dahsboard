@@ -27,6 +27,7 @@ import {
   CheckCircle2,
   Circle,
   FileSearch,
+  Lightbulb,
 } from "lucide-react";
 
 interface Incident {
@@ -206,16 +207,21 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
         {/* Horizontal timeline */}
         <HorizontalTimeline incident={incident} />
 
-        {/* RCA */}
-        <div className="rounded-md border bg-white p-3 space-y-3">
-          <div className="flex items-center gap-2">
-            <FileSearch className="h-4 w-4 text-slate-400" />
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Root Cause Analysis</p>
+        {/* RCA + Key Findings - 2 columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+          <div className="rounded-md border bg-white p-3 space-y-2 h-full">
+            <div className="flex items-center gap-2">
+              <FileSearch className="h-4 w-4 text-slate-400" />
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Root Cause Analysis</p>
+            </div>
+            <p className="text-sm text-slate-700 leading-6">{rcaSummary}</p>
           </div>
-          <p className="text-sm text-slate-700 leading-6">{rcaSummary}</p>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Key Findings</p>
-            <ul className="text-xs text-slate-700 list-disc pl-5 space-y-1">
+          <div className="rounded-md border bg-white p-3 space-y-2 h-full">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-amber-500" />
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Findings</p>
+            </div>
+            <ul className="text-xs text-slate-700 list-disc pl-5 space-y-1.5 leading-5">
               <li>Upstream schema drift introduced an unexpected field change.</li>
               <li>Validation rules did not fail fast before the transformation step.</li>
               <li>Retry behavior amplified the impact by repeatedly reprocessing failed batches.</li>
