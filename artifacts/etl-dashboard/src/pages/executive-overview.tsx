@@ -60,7 +60,7 @@ function fmtTime(iso: string) {
 
 export default function ExecutiveOverview() {
   const { data: kpis } = useGetOverviewKpis();
-  const { data: runs } = useGetPipelineRuns();
+  const { data: runsData } = useGetPipelineRuns();
   const [dateRange, setDateRange] = useState("today");
   const [resourceType, setResourceType] = useState<"job" | "lambda">("job");
   const [selectedPipeline, setSelectedPipeline] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export default function ExecutiveOverview() {
     ])
       .then(([k, r]) => {
         setLambdaKpis(k);
-        setLambdaRuns(r);
+        setLambdaRuns(Array.isArray(r) ? r : []);
       })
       .catch(() => {
         setLambdaKpis(null);
@@ -110,7 +110,7 @@ export default function ExecutiveOverview() {
   const nameHeader = isLambda ? "Function" : "Pipeline";
   const costHeader = isLambda ? "Cost/Invocation" : "Cost/Run";
 
-  const jobRuns: JobRun[] = (runs as JobRun[] | undefined) ?? [];
+  const jobRuns: JobRun[] = (Array.isArray(runsData) ? runsData : []) as JobRun[];
 
   type Row = { id: string; name: string; status: string; startTime: string; endTime: string; duration: string; cost: number; clickable: boolean };
   const rows: Row[] = isLambda
