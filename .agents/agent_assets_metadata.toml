@@ -1,8 +1,19 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "Y6aP4ok-0wUAgRxLjW-lo"
+uri = "file://attached_assets/generated_images/opsguardian_aws_architecture.png"
+type = "image"
+title = "generated_image"
 
 [[outputs]]
 id = "NBlPs1raIhWOXEciepkxN"
 uri = "file://docs/OpsGuardian-Product-Design-Document.md"
 type = "text"
 title = "OpsGuardian — Product Design Document"
+
+[[outputs]]
+id = "l_2pbSEC51rFL8mzTbjow"
+uri = "file://docs/diagrams/opsguardian-aws-architecture.svg"
+type = "image"
+title = "OpsGuardian — AWS Reference Architecture (SVG)"

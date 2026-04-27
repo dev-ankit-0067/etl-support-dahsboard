@@ -1,0 +1,275 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1100" font-family="Inter, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ea580c"/>
+    </marker>
+    <style>
+      .title{font-size:26px;font-weight:700;fill:#0f172a}
+      .subtitle{font-size:13px;fill:#64748b}
+      .zone{font-size:14px;font-weight:600;fill:#334155}
+      .box{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5}
+      .acct{fill:#fff7ed;stroke:#fdba74;stroke-width:1.5}
+      .vpc{fill:#eff6ff;stroke:#93c5fd;stroke-width:1.5;stroke-dasharray:6 4}
+      .subnet{fill:#f1f5f9;stroke:#94a3b8;stroke-width:1}
+      .pubsubnet{fill:#ecfeff;stroke:#67e8f9;stroke-width:1}
+      .svc{fill:#fff;stroke:#fb923c;stroke-width:1.5}
+      .svcText{font-size:11px;font-weight:600;fill:#9a3412;text-anchor:middle}
+      .label{font-size:12px;fill:#0f172a}
+      .small{font-size:10px;fill:#475569}
+      .arrowLabel{font-size:10px;fill:#334155;font-weight:600}
+      .conn{stroke:#475569;stroke-width:1.5;fill:none}
+      .connOrange{stroke:#ea580c;stroke-width:1.8;fill:none}
+      .connDashed{stroke:#94a3b8;stroke-width:1.2;fill:none;stroke-dasharray:4 3}
+      .iconLabel{font-size:10px;fill:#1e293b;text-anchor:middle}
+      .badge{fill:#fef3c7;stroke:#f59e0b;stroke-width:1}
+      .badgeText{font-size:10px;fill:#92400e;text-anchor:middle;font-weight:600}
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="800" y="40" class="title" text-anchor="middle">OpsGuardian — AWS Reference Architecture (Private VPC)</text>
+  <text x="800" y="62" class="subtitle" text-anchor="middle">Read-only dashboard. All AWS &amp; Jira reads broker through MCP. No public IPs on app/data tiers.</text>
+
+  <!-- ===== Zone 1: Internet ===== -->
+  <text x="100" y="100" class="zone">Internet</text>
+  <rect x="40" y="115" width="180" height="380" rx="8" class="box"/>
+
+  <!-- User -->
+  <rect x="70" y="145" width="120" height="60" rx="6" class="svc"/>
+  <text x="130" y="172" class="svcText">End User</text>
+  <text x="130" y="188" class="iconLabel">SRE / FinOps / Eng Mgr</text>
+
+  <!-- OIDC -->
+  <rect x="70" y="230" width="120" height="55" rx="6" class="svc"/>
+  <text x="130" y="252" class="svcText">OIDC IdP</text>
+  <text x="130" y="268" class="iconLabel">Okta / Cognito</text>
+
+  <!-- Jira -->
+  <rect x="70" y="320" width="120" height="60" rx="6" class="svc"/>
+  <text x="130" y="347" class="svcText">Jira Cloud</text>
+  <text x="130" y="363" class="iconLabel">REST API</text>
+
+  <!-- ===== Zone 2: AWS Account ops-shared ===== -->
+  <text x="265" y="100" class="zone">AWS Account: ops-shared (us-east-1)</text>
+  <rect x="250" y="115" width="990" height="930" rx="10" class="acct"/>
+
+  <!-- Public subnet -->
+  <rect x="280" y="145" width="930" height="100" rx="6" class="pubsubnet"/>
+  <text x="295" y="165" class="label" font-weight="600">Public Subnet</text>
+
+  <rect x="320" y="180" width="120" height="50" rx="6" class="svc"/>
+  <text x="380" y="202" class="svcText">Route 53</text>
+  <text x="380" y="218" class="iconLabel">DNS</text>
+
+  <rect x="500" y="180" width="120" height="50" rx="6" class="svc"/>
+  <text x="560" y="202" class="svcText">AWS WAF</text>
+  <text x="560" y="218" class="iconLabel">TLS 1.3</text>
+
+  <rect x="680" y="180" width="160" height="50" rx="6" class="svc"/>
+  <text x="760" y="202" class="svcText">Application Load Balancer</text>
+  <text x="760" y="218" class="iconLabel">ALB · 443</text>
+
+  <!-- arrows in public subnet -->
+  <line x1="440" y1="205" x2="500" y2="205" class="conn" marker-end="url(#arrow)"/>
+  <line x1="620" y1="205" x2="680" y2="205" class="conn" marker-end="url(#arrow)"/>
+
+  <!-- VPC -->
+  <rect x="280" y="265" width="930" height="640" rx="10" class="vpc"/>
+  <text x="295" y="285" class="label" font-weight="700">Private VPC — 10.40.0.0/16</text>
+
+  <!-- Web tier -->
+  <rect x="305" y="305" width="600" height="100" rx="6" class="subnet"/>
+  <text x="320" y="325" class="label" font-weight="600">Web Tier · Private Subnet A (10.40.1.0/24)</text>
+  <rect x="340" y="340" width="100" height="50" rx="6" class="svc"/>
+  <text x="390" y="360" class="svcText">EC2</text>
+  <text x="390" y="378" class="iconLabel">Nginx + React</text>
+  <rect x="460" y="340" width="100" height="50" rx="6" class="svc"/>
+  <text x="510" y="360" class="svcText">EC2</text>
+  <text x="510" y="378" class="iconLabel">Nginx + React</text>
+  <text x="700" y="362" class="small">Auto Scaling Group · t3.medium · serves Vite static bundle</text>
+
+  <!-- App tier -->
+  <rect x="305" y="425" width="600" height="100" rx="6" class="subnet"/>
+  <text x="320" y="445" class="label" font-weight="600">App Tier · Private Subnet B (10.40.2.0/24)</text>
+  <rect x="340" y="460" width="100" height="50" rx="6" class="svc"/>
+  <text x="390" y="480" class="svcText">EC2</text>
+  <text x="390" y="498" class="iconLabel">FastAPI / Node</text>
+  <rect x="460" y="460" width="100" height="50" rx="6" class="svc"/>
+  <text x="510" y="480" class="svcText">EC2</text>
+  <text x="510" y="498" class="iconLabel">FastAPI / Node</text>
+  <text x="700" y="482" class="small">Auto Scaling Group · t3.large · API Server (auth, orchestration)</text>
+
+  <!-- MCP tier -->
+  <rect x="305" y="545" width="600" height="100" rx="6" class="subnet"/>
+  <text x="320" y="565" class="label" font-weight="600">MCP Tier · Private Subnet C (10.40.3.0/24)</text>
+  <rect x="340" y="580" width="100" height="50" rx="6" class="svc"/>
+  <text x="390" y="600" class="svcText">EC2</text>
+  <text x="390" y="618" class="iconLabel">MCP Server</text>
+  <text x="700" y="602" class="small">Tool registry: aws.glue · aws.lambda · aws.cw · aws.ce · jira.search · jira.issue</text>
+
+  <!-- Data tier -->
+  <rect x="305" y="665" width="600" height="100" rx="6" class="subnet"/>
+  <text x="320" y="685" class="label" font-weight="600">Data Tier · Private Subnet D (10.40.4.0/24)</text>
+  <rect x="340" y="700" width="120" height="50" rx="6" class="svc"/>
+  <text x="400" y="720" class="svcText">RDS PostgreSQL</text>
+  <text x="400" y="738" class="iconLabel">audit · prefs · projects</text>
+  <rect x="490" y="700" width="120" height="50" rx="6" class="svc"/>
+  <text x="550" y="720" class="svcText">ElastiCache Redis</text>
+  <text x="550" y="738" class="iconLabel">metric &amp; token cache</text>
+
+  <!-- VPC Endpoints column -->
+  <rect x="930" y="305" width="260" height="460" rx="6" class="subnet"/>
+  <text x="945" y="325" class="label" font-weight="600">VPC Interface Endpoints</text>
+  <text x="945" y="342" class="small">PrivateLink — no internet egress</text>
+
+  <g font-size="11" fill="#9a3412">
+    <rect x="950" y="355" width="220" height="34" rx="4" class="svc"/><text x="1060" y="376" class="svcText">com.amazonaws.us-east-1.sts</text>
+    <rect x="950" y="395" width="220" height="34" rx="4" class="svc"/><text x="1060" y="416" class="svcText">com.amazonaws.us-east-1.monitoring</text>
+    <rect x="950" y="435" width="220" height="34" rx="4" class="svc"/><text x="1060" y="456" class="svcText">com.amazonaws.us-east-1.glue</text>
+    <rect x="950" y="475" width="220" height="34" rx="4" class="svc"/><text x="1060" y="496" class="svcText">com.amazonaws.us-east-1.lambda</text>
+    <rect x="950" y="515" width="220" height="34" rx="4" class="svc"/><text x="1060" y="536" class="svcText">com.amazonaws.us-east-1.ce</text>
+    <rect x="950" y="555" width="220" height="34" rx="4" class="svc"/><text x="1060" y="576" class="svcText">com.amazonaws.us-east-1.budgets</text>
+    <rect x="950" y="595" width="220" height="34" rx="4" class="svc"/><text x="1060" y="616" class="svcText">com.amazonaws.us-east-1.secretsmanager</text>
+    <rect x="950" y="635" width="220" height="34" rx="4" class="svc"/><text x="1060" y="656" class="svcText">com.amazonaws.us-east-1.ssm</text>
+  </g>
+
+  <!-- NAT Gateway (jira egress) -->
+  <rect x="305" y="790" width="180" height="55" rx="6" class="svc"/>
+  <text x="395" y="812" class="svcText">NAT Gateway</text>
+  <text x="395" y="828" class="iconLabel">egress allow-list: *.atlassian.net</text>
+
+  <!-- account-level shared services (outside VPC) -->
+  <rect x="280" y="925" width="930" height="100" rx="6" class="box"/>
+  <text x="295" y="945" class="label" font-weight="600">Shared account services</text>
+
+  <rect x="320" y="960" width="160" height="50" rx="6" class="svc"/>
+  <text x="400" y="982" class="svcText">AWS Secrets Manager</text>
+  <text x="400" y="998" class="iconLabel">Jira token · OIDC client secret</text>
+
+  <rect x="500" y="960" width="160" height="50" rx="6" class="svc"/>
+  <text x="580" y="982" class="svcText">IAM Roles</text>
+  <text x="580" y="998" class="iconLabel">EC2 instance profiles</text>
+
+  <rect x="680" y="960" width="200" height="50" rx="6" class="svc"/>
+  <text x="780" y="982" class="svcText">CloudWatch</text>
+  <text x="780" y="998" class="iconLabel">Logs · Metrics · Alarms · X-Ray</text>
+
+  <rect x="900" y="960" width="160" height="50" rx="6" class="svc"/>
+  <text x="980" y="982" class="svcText">AWS WAF + Shield</text>
+  <text x="980" y="998" class="iconLabel">L7 protection</text>
+
+  <rect x="1080" y="960" width="120" height="50" rx="6" class="svc"/>
+  <text x="1140" y="982" class="svcText">Route 53</text>
+  <text x="1140" y="998" class="iconLabel">opsguardian.acme</text>
+
+  <!-- ===== Zone 3: Monitored AWS Accounts ===== -->
+  <text x="1290" y="100" class="zone">Monitored AWS Accounts (cross-account, read-only)</text>
+  <rect x="1270" y="115" width="310" height="930" rx="10" class="box"/>
+
+  <!-- account 1 -->
+  <rect x="1290" y="150" width="270" height="200" rx="8" class="acct"/>
+  <text x="1305" y="170" class="label" font-weight="700">Payments Platform</text>
+  <text x="1305" y="186" class="small">acct 957382641029 · us-east-1</text>
+  <rect x="1305" y="200" width="120" height="40" rx="4" class="svc"/><text x="1365" y="222" class="svcText">AWS Glue</text>
+  <rect x="1435" y="200" width="120" height="40" rx="4" class="svc"/><text x="1495" y="222" class="svcText">AWS Lambda</text>
+  <rect x="1305" y="248" width="120" height="40" rx="4" class="svc"/><text x="1365" y="270" class="svcText">CloudWatch</text>
+  <rect x="1435" y="248" width="120" height="40" rx="4" class="svc"/><text x="1495" y="270" class="svcText">Cost Explorer</text>
+  <rect x="1305" y="296" width="250" height="40" rx="4" class="badge"/>
+  <text x="1430" y="320" class="badgeText">IAM: OpsGuardianReadRole (assumed)</text>
+
+  <!-- account 2 -->
+  <rect x="1290" y="370" width="270" height="200" rx="8" class="acct"/>
+  <text x="1305" y="390" class="label" font-weight="700">Customer Data Hub</text>
+  <text x="1305" y="406" class="small">acct 203847561234 · us-east-1</text>
+  <rect x="1305" y="420" width="120" height="40" rx="4" class="svc"/><text x="1365" y="442" class="svcText">AWS Glue</text>
+  <rect x="1435" y="420" width="120" height="40" rx="4" class="svc"/><text x="1495" y="442" class="svcText">AWS Lambda</text>
+  <rect x="1305" y="468" width="120" height="40" rx="4" class="svc"/><text x="1365" y="490" class="svcText">CloudWatch</text>
+  <rect x="1435" y="468" width="120" height="40" rx="4" class="svc"/><text x="1495" y="490" class="svcText">Cost Explorer</text>
+  <rect x="1305" y="516" width="250" height="40" rx="4" class="badge"/>
+  <text x="1430" y="540" class="badgeText">IAM: OpsGuardianReadRole (assumed)</text>
+
+  <!-- account 3 -->
+  <rect x="1290" y="590" width="270" height="200" rx="8" class="acct"/>
+  <text x="1305" y="610" class="label" font-weight="700">Analytics &amp; ML</text>
+  <text x="1305" y="626" class="small">acct 748392051023 · us-west-2</text>
+  <rect x="1305" y="640" width="120" height="40" rx="4" class="svc"/><text x="1365" y="662" class="svcText">AWS Glue</text>
+  <rect x="1435" y="640" width="120" height="40" rx="4" class="svc"/><text x="1495" y="662" class="svcText">AWS Lambda</text>
+  <rect x="1305" y="688" width="120" height="40" rx="4" class="svc"/><text x="1365" y="710" class="svcText">CloudWatch</text>
+  <rect x="1435" y="688" width="120" height="40" rx="4" class="svc"/><text x="1495" y="710" class="svcText">Cost Explorer</text>
+  <rect x="1305" y="736" width="250" height="40" rx="4" class="badge"/>
+  <text x="1430" y="760" class="badgeText">IAM: OpsGuardianReadRole (assumed)</text>
+
+  <!-- account 4 -->
+  <rect x="1290" y="810" width="270" height="200" rx="8" class="acct"/>
+  <text x="1305" y="830" class="label" font-weight="700">Marketing Attribution</text>
+  <text x="1305" y="846" class="small">acct 512874039128 · us-east-1</text>
+  <rect x="1305" y="860" width="120" height="40" rx="4" class="svc"/><text x="1365" y="882" class="svcText">AWS Glue</text>
+  <rect x="1435" y="860" width="120" height="40" rx="4" class="svc"/><text x="1495" y="882" class="svcText">AWS Lambda</text>
+  <rect x="1305" y="908" width="120" height="40" rx="4" class="svc"/><text x="1365" y="930" class="svcText">CloudWatch</text>
+  <rect x="1435" y="908" width="120" height="40" rx="4" class="svc"/><text x="1495" y="930" class="svcText">Cost Explorer</text>
+  <rect x="1305" y="956" width="250" height="40" rx="4" class="badge"/>
+  <text x="1430" y="980" class="badgeText">IAM: OpsGuardianReadRole (assumed)</text>
+
+  <!-- ===== Connections ===== -->
+  <!-- User HTTPS -> Route 53 -->
+  <line x1="190" y1="175" x2="320" y2="205" class="conn" marker-end="url(#arrow)"/>
+  <text x="220" y="170" class="arrowLabel">HTTPS / OIDC JWT</text>
+
+  <!-- ALB -> Web Tier -->
+  <line x1="760" y1="230" x2="510" y2="340" class="conn" marker-end="url(#arrow)"/>
+  <text x="610" y="280" class="arrowLabel">443</text>
+
+  <!-- Web -> App -->
+  <line x1="510" y1="390" x2="510" y2="460" class="conn" marker-end="url(#arrow)"/>
+  <text x="520" y="425" class="arrowLabel">/api/*</text>
+
+  <!-- App -> MCP -->
+  <line x1="510" y1="510" x2="510" y2="580" class="conn" marker-end="url(#arrow)"/>
+  <text x="520" y="545" class="arrowLabel">mTLS RPC</text>
+
+  <!-- App -> Data -->
+  <line x1="400" y1="510" x2="400" y2="700" class="connDashed" marker-end="url(#arrow)"/>
+  <text x="320" y="600" class="arrowLabel">RDS / Redis</text>
+
+  <!-- MCP -> VPC Endpoints -->
+  <line x1="440" y1="605" x2="950" y2="495" class="connOrange" marker-end="url(#arrowOrange)"/>
+  <text x="700" y="540" class="arrowLabel" fill="#9a3412">AWS API calls (PrivateLink)</text>
+
+  <!-- VPC Endpoints -> Monitored Accounts (single bundled arrow) -->
+  <path d="M 1190 495 C 1230 495 1230 250 1290 250" class="connOrange" fill="none" marker-end="url(#arrowOrange)"/>
+  <path d="M 1190 495 C 1230 495 1230 470 1290 470" class="connOrange" fill="none" marker-end="url(#arrowOrange)"/>
+  <path d="M 1190 495 C 1230 495 1230 690 1290 690" class="connOrange" fill="none" marker-end="url(#arrowOrange)"/>
+  <path d="M 1190 495 C 1230 495 1230 910 1290 910" class="connOrange" fill="none" marker-end="url(#arrowOrange)"/>
+  <text x="1208" y="595" class="arrowLabel" fill="#9a3412" transform="rotate(-90 1208 595)">sts:AssumeRole · OpsGuardianReadRole</text>
+
+  <!-- MCP -> NAT GW -->
+  <line x1="390" y1="630" x2="390" y2="790" class="conn" marker-end="url(#arrow)"/>
+  <text x="240" y="730" class="arrowLabel">443 → Jira</text>
+
+  <!-- NAT GW -> Jira (back to Internet zone) -->
+  <path d="M 305 815 C 240 815 240 350 190 350" class="conn" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Secrets / IAM / CloudWatch dashed connections -->
+  <line x1="510" y1="510" x2="400" y2="960" class="connDashed"/>
+  <line x1="390" y1="630" x2="580" y2="960" class="connDashed"/>
+  <line x1="510" y1="510" x2="780" y2="960" class="connDashed"/>
+  <line x1="390" y1="630" x2="780" y2="960" class="connDashed"/>
+
+  <!-- User -> OIDC -->
+  <line x1="130" y1="205" x2="130" y2="230" class="conn" marker-end="url(#arrow)"/>
+
+  <!-- ===== Legend ===== -->
+  <rect x="40" y="940" width="200" height="105" rx="6" class="box"/>
+  <text x="55" y="960" class="label" font-weight="700">Legend</text>
+  <line x1="55" y1="975" x2="95" y2="975" class="conn" marker-end="url(#arrow)"/>
+  <text x="105" y="979" class="small">Synchronous request</text>
+  <line x1="55" y1="995" x2="95" y2="995" class="connOrange" marker-end="url(#arrowOrange)"/>
+  <text x="105" y="999" class="small">AWS API call (cross-acct)</text>
+  <line x1="55" y1="1015" x2="95" y2="1015" class="connDashed"/>
+  <text x="105" y="1019" class="small">Secrets / logs / metadata</text>
+  <rect x="55" y="1027" width="14" height="10" class="acct"/>
+  <text x="75" y="1037" class="small">AWS account boundary</text>
+</svg>
