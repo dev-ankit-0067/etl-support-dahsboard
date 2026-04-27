@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "NBlPs1raIhWOXEciepkxN"
+uri = "file://docs/OpsGuardian-Product-Design-Document.md"
+type = "text"
+title = "OpsGuardian — Product Design Document"
