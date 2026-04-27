@@ -73,6 +73,8 @@ const DATE_MULTIPLIERS: Record<string, number> = {
   today: 1,
   "7d": 7,
   "30d": 30,
+  "60d": 60,
+  "90d": 90,
 };
 
 function statusBadge(status: string) {
@@ -108,6 +110,44 @@ function fmtMs(ms: number) {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
+function filterRunsByDateRange<T extends { startTime: string }>(
+  runs: T[],
+  dateRange: string,
+): T[] {
+  if (!Array.isArray(runs)) return [];
+  const now = new Date();
+  let cutoffTime: Date;
+
+  switch (dateRange) {
+    case "today":
+      cutoffTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      break;
+    case "7d":
+      cutoffTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case "30d":
+      cutoffTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    case "60d":
+      cutoffTime = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+      break;
+    case "90d":
+      cutoffTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      break;
+    default:
+      return runs;
+  }
+
+  return runs.filter((run) => {
+    try {
+      const runTime = new Date(run.startTime);
+      return runTime >= cutoffTime;
+    } catch {
+      return false;
+    }
+  });
+}
+
 function JobHistorySubsection({ jobName }: { jobName: string }) {
   const { data, isLoading } = useQuery<RunHistoryItem[]>({
     queryKey: ["pipeline-history", jobName],
@@ -127,13 +167,18 @@ function JobHistorySubsection({ jobName }: { jobName: string }) {
     );
   }
 
-  const totalCost = data.reduce((s, r) => s + r.cost, 0);
-  const success = data.filter((r) => r.status === "Success").length;
-  const successRate = data.length
-    ? Math.round((success / data.length) * 100)
+  // Sort by start time descending (most recent first) and take last 5 runs
+  const recentRuns = data
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+    .slice(0, 5);
+
+  const totalCost = recentRuns.reduce((s, r) => s + r.cost, 0);
+  const success = recentRuns.filter((r) => r.status === "Success").length;
+  const successRate = recentRuns.length
+    ? Math.round((success / recentRuns.length) * 100)
     : 0;
-  const avgDur = data.length
-    ? data.reduce((s, r) => s + r.durationMin, 0) / data.length
+  const avgDur = recentRuns.length
+    ? recentRuns.reduce((s, r) => s + r.durationMin, 0) / recentRuns.length
     : 0;
 
   return (
@@ -151,7 +196,7 @@ function JobHistorySubsection({ jobName }: { jobName: string }) {
           </span>
         </span>
         <span className="text-muted-foreground">
-          Total cost (last {data.length}):{" "}
+          Total cost (last 5 runs):{" "}
           <span className="font-semibold text-slate-700">
             ${totalCost.toFixed(2)}
           </span>
@@ -181,7 +226,7 @@ function JobHistorySubsection({ jobName }: { jobName: string }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((r) => (
+          {recentRuns.map((r) => (
             <TableRow key={r.id} className="hover:bg-white">
               <TableCell className="text-xs font-mono text-muted-foreground">
                 {r.id}
@@ -253,13 +298,18 @@ function LambdaHistorySubsection({ functionName }: { functionName: string }) {
     );
   }
 
-  const totalCost = data.reduce((s, r) => s + r.cost, 0);
-  const success = data.filter((r) => r.status === "Success").length;
-  const successRate = data.length
-    ? Math.round((success / data.length) * 100)
+  // Sort by start time descending (most recent first) and take last 5 runs
+  const recentRuns = data
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+    .slice(0, 5);
+
+  const totalCost = recentRuns.reduce((s, r) => s + r.cost, 0);
+  const success = recentRuns.filter((r) => r.status === "Success").length;
+  const successRate = recentRuns.length
+    ? Math.round((success / recentRuns.length) * 100)
     : 0;
-  const avgMs = data.length
-    ? data.reduce((s, r) => s + r.durationMs, 0) / data.length
+  const avgMs = recentRuns.length
+    ? recentRuns.reduce((s, r) => s + r.durationMs, 0) / recentRuns.length
     : 0;
 
   return (
@@ -277,7 +327,7 @@ function LambdaHistorySubsection({ functionName }: { functionName: string }) {
           </span>
         </span>
         <span className="text-muted-foreground">
-          Total cost (last {data.length}):{" "}
+          Total cost (last 5 runs):{" "}
           <span className="font-semibold text-slate-700">
             ${totalCost.toFixed(4)}
           </span>
@@ -310,7 +360,7 @@ function LambdaHistorySubsection({ functionName }: { functionName: string }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((r) => (
+          {recentRuns.map((r) => (
             <TableRow key={r.id} className="hover:bg-white">
               <TableCell className="text-xs font-mono text-muted-foreground">
                 {r.id}
@@ -408,66 +458,67 @@ export default function ExecutiveOverview() {
   const mult = (DATE_MULTIPLIERS[dateRange] ?? 1) * accountScale;
   const isLambda = resourceType === "lambda";
 
-  const totalCount = isLambda
-    ? Math.max(
-        0,
-        Math.round(
-          (lambdaKpis?.totalFunctions ?? 0) *
-            mult *
-            (dateRange === "today" ? 1 : 0.95),
-        ),
-      )
-    : Math.max(
-        0,
-        Math.round(
-          kpis.totalPipelines * mult * (dateRange === "today" ? 1 : 0.9),
-        ),
-      );
-  const healthyCount = isLambda
-    ? Math.max(
-        0,
-        Math.round(
-          (lambdaKpis?.healthy ?? 0) *
-            mult *
-            (dateRange === "today" ? 1 : 0.92),
-        ),
-      )
-    : Math.max(
-        0,
-        Math.round(kpis.healthy * mult * (dateRange === "today" ? 1 : 0.88)),
-      );
-  const failedCount = isLambda
-    ? Math.max(
-        0,
-        Math.round(
-          (lambdaKpis?.withErrors ?? 0) *
-            mult *
-            (dateRange === "today" ? 1 : 1.08),
-        ),
-      )
-    : Math.max(
-        0,
-        Math.round(
-          (kpis.failed + kpis.degraded) *
-            mult *
-            (dateRange === "today" ? 1 : 1.05),
-        ),
-      );
+  const jobRuns: JobRun[] = (
+    Array.isArray(runs) ? runs : []
+  ) as JobRun[];
+
+  // Filter runs by date range
+  const filteredJobRuns = filterRunsByDateRange(jobRuns, dateRange);
+  const filteredLambdaRuns = filterRunsByDateRange(lambdaRuns, dateRange);
+
+  // Calculate counts from unique jobs/functions (after grouping)
+  const uniqueResources = isLambda
+    ? new Set(filteredLambdaRuns.map(r => r.functionName)).size
+    : new Set(filteredJobRuns.map(r => r.pipelineName)).size;
+
+  let totalCount: number;
+  let healthyCount: number;
+  let failedCount: number;
+
+  if (uniqueResources === 0) {
+    // No resources in selected period - show 0 in tiles
+    totalCount = 0;
+    healthyCount = 0;
+    failedCount = 0;
+  } else {
+    // Calculate from unique resources for all date ranges
+    totalCount = uniqueResources;
+    // For healthy/failed counts, we need to check the latest run status for each unique resource
+    const latestRuns = isLambda
+      ? (() => {
+          const grouped = filteredLambdaRuns.reduce((acc, run) => {
+            const key = run.functionName;
+            if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
+              acc[key] = run;
+            }
+            return acc;
+          }, {} as Record<string, LambdaRun>);
+          return Object.values(grouped);
+        })()
+      : (() => {
+          const grouped = filteredJobRuns.reduce((acc, run) => {
+            const key = run.pipelineName;
+            if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
+              acc[key] = run;
+            }
+            return acc;
+          }, {} as Record<string, JobRun>);
+          return Object.values(grouped);
+        })();
+
+    healthyCount = latestRuns.filter((r) => r.status === "Success").length;
+    failedCount = latestRuns.filter((r) => r.status === "Failed" || r.status === "Timed Out").length;
+  }
 
   const totalLabel = isLambda ? "Total Functions" : "Total Jobs";
   const healthyLabel = isLambda ? "Healthy Functions" : "Healthy Jobs";
   const failedLabel = isLambda ? "Functions with Errors" : "Failed Jobs";
   const totalSubtitle = isLambda
     ? "Across all Lambda functions"
-    : "Across all pipelines";
+    : "Across all Glue jobs";
   const tableTitle = isLambda ? "Active Invocations" : "Active Jobs";
-  const idHeader = isLambda ? "Invocation ID" : "Job ID";
   const nameHeader = isLambda ? "Function Name" : "Job Name";
   const costHeader = isLambda ? "Cost/Invocation" : "Cost/Run";
-
-  const jobRuns: JobRun[] = (
-    Array.isArray(runsData) ? runsData : []
-  ) as JobRun[];
 
   type Row = {
     id: string;
@@ -480,26 +531,46 @@ export default function ExecutiveOverview() {
     expandable: boolean;
   };
   const allRows: Row[] = isLambda
-    ? lambdaRuns.map((r) => ({
-        id: r.id,
-        name: r.functionName,
-        status: r.status,
-        startTime: r.startTime,
-        endTime: r.endTime,
-        duration: r.duration,
-        cost: r.costPerRun,
-        expandable: true,
-      }))
-    : jobRuns.map((r) => ({
-        id: r.id,
-        name: r.pipelineName,
-        status: r.status,
-        startTime: r.startTime,
-        endTime: r.endTime,
-        duration: r.duration,
-        cost: r.costPerRun,
-        expandable: true,
-      }));
+    ? (() => {
+        // Group Lambda runs by function name and keep only the latest run for each
+        const grouped = filteredLambdaRuns.reduce((acc, run) => {
+          const key = run.functionName;
+          if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
+            acc[key] = run;
+          }
+          return acc;
+        }, {} as Record<string, LambdaRun>);
+        return Object.values(grouped).map((r) => ({
+          id: r.id,
+          name: r.functionName,
+          status: r.status,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          duration: r.duration,
+          cost: r.costPerRun,
+          expandable: true,
+        }));
+      })()
+    : (() => {
+        // Group job runs by pipeline name and keep only the latest run for each
+        const grouped = filteredJobRuns.reduce((acc, run) => {
+          const key = run.pipelineName;
+          if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
+            acc[key] = run;
+          }
+          return acc;
+        }, {} as Record<string, JobRun>);
+        return Object.values(grouped).map((r) => ({
+          id: r.id,
+          name: r.pipelineName,
+          status: r.status,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          duration: r.duration,
+          cost: r.costPerRun,
+          expandable: true,
+        }));
+      })();
   // Slice rows proportional to selected account so the table reflects the scope
   const rowKeep =
     account.id === "all"
@@ -542,6 +613,8 @@ export default function ExecutiveOverview() {
               <SelectItem value="today">Today</SelectItem>
               <SelectItem value="7d">Last 7 Days</SelectItem>
               <SelectItem value="30d">Last 30 Days</SelectItem>
+              <SelectItem value="60d">Last 60 Days</SelectItem>
+              <SelectItem value="90d">Last 90 Days</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -646,7 +719,6 @@ export default function ExecutiveOverview() {
             <TableHeader className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_rgb(226_232_240)]">
               <TableRow>
                 <TableHead className="w-8 text-xs"></TableHead>
-                <TableHead className="text-xs">{idHeader}</TableHead>
                 <TableHead className="text-xs">{nameHeader}</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
                 <TableHead className="text-xs">Start Time</TableHead>
@@ -661,90 +733,99 @@ export default function ExecutiveOverview() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => {
-                const isExpanded = expanded === row.name;
-                return (
-                  <Fragment key={row.id}>
-                    <TableRow
-                      className={`group ${row.expandable ? "cursor-pointer" : ""} ${isExpanded ? "bg-slate-50" : ""}`}
-                      onClick={() =>
-                        row.expandable &&
-                        setExpanded(isExpanded ? null : row.name)
-                      }
-                    >
-                      <TableCell className="py-2">
-                        {row.expandable ? (
-                          <button
-                            type="button"
-                            aria-label={
-                              isExpanded ? "Collapse details" : "Expand details"
-                            }
-                            className="flex items-center justify-center h-5 w-5 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setExpanded(isExpanded ? null : row.name);
-                            }}
+              {rows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-8">
+                    <div className="flex items-center justify-center text-muted-foreground text-sm">
+                      {dateRange === "today"
+                        ? `No ${isLambda ? "invocations" : "jobs"} run today`
+                        : `No ${isLambda ? "invocations" : "jobs"} in selected period`}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rows.map((row) => {
+                  const isExpanded = expanded === row.name;
+                  return (
+                    <Fragment key={row.id}>
+                      <TableRow
+                        className={`group ${row.expandable ? "cursor-pointer" : ""} ${isExpanded ? "bg-slate-50" : ""}`}
+                        onClick={() =>
+                          row.expandable &&
+                          setExpanded(isExpanded ? null : row.name)
+                        }
+                      >
+                        <TableCell className="py-2">
+                          {row.expandable ? (
+                            <button
+                              type="button"
+                              aria-label={
+                                isExpanded ? "Collapse details" : "Expand details"
+                              }
+                              className="flex items-center justify-center h-5 w-5 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpanded(isExpanded ? null : row.name);
+                              }}
+                            >
+                              {isExpanded ? (
+                                <Minus className="h-3 w-3" />
+                              ) : (
+                                <Plus className="h-3 w-3" />
+                              )}
+                            </button>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <span
+                            className={`text-xs font-medium ${row.expandable ? "text-primary" : "text-slate-700"}`}
                           >
-                            {isExpanded ? (
-                              <Minus className="h-3 w-3" />
-                            ) : (
-                              <Plus className="h-3 w-3" />
-                            )}
-                          </button>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground py-2">
-                        {row.id}
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <span
-                          className={`text-xs font-medium ${row.expandable ? "text-primary" : "text-slate-700"}`}
-                        >
-                          {row.name}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-2">
-                        {statusBadge(row.status)}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground py-2">
-                        {fmtTime(row.startTime)}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground py-2">
-                        {fmtTime(row.endTime)}
-                      </TableCell>
-                      <TableCell className="text-xs py-2">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          {row.duration}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs text-right font-mono py-2">
-                        {row.cost > 0 ? (
-                          <span className="font-medium text-slate-700">
-                            $
-                            {isLambda
-                              ? row.cost.toFixed(4)
-                              : row.cost.toFixed(2)}
+                            {row.name}
                           </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                    {isExpanded && row.expandable && (
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={8} className="p-0">
-                          {isLambda ? (
-                            <LambdaHistorySubsection functionName={row.name} />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          {statusBadge(row.status)}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground py-2">
+                          {fmtTime(row.startTime)}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground py-2">
+                          {fmtTime(row.endTime)}
+                        </TableCell>
+                        <TableCell className="text-xs py-2">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            {row.duration}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono py-2">
+                          {row.cost > 0 ? (
+                            <span className="font-medium text-slate-700">
+                              $
+                              {isLambda
+                                ? row.cost.toFixed(4)
+                                : row.cost.toFixed(2)}
+                            </span>
                           ) : (
-                            <JobHistorySubsection jobName={row.name} />
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
                       </TableRow>
-                    )}
-                  </Fragment>
-                );
-              })}
+                      {isExpanded && row.expandable && (
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell colSpan={7} className="p-0">
+                            {isLambda ? (
+                              <LambdaHistorySubsection functionName={row.name} />
+                            ) : (
+                              <JobHistorySubsection jobName={row.name} />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </CardContent>
