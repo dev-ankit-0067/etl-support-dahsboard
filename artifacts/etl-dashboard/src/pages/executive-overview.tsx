@@ -1,10 +1,26 @@
 import { Fragment, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useGetOverviewKpis, useGetPipelineRuns } from "@workspace/api-client-react";
+import {
+  useGetOverviewKpis,
+  useGetPipelineRuns,
+} from "@workspace/api-client-react";
 import { useAccount } from "@/contexts/AccountContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   CheckCircle2,
   XCircle,
@@ -53,7 +69,11 @@ interface RunHistoryItem {
   errorMessage: string | null;
 }
 
-const DATE_MULTIPLIERS: Record<string, number> = { today: 1, "7d": 7, "30d": 30 };
+const DATE_MULTIPLIERS: Record<string, number> = {
+  today: 1,
+  "7d": 7,
+  "30d": 30,
+};
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
@@ -65,14 +85,21 @@ function statusBadge(status: string) {
     "Timed Out": "bg-orange-100 text-orange-700 border-orange-200",
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${map[status] || map.Waiting}`}>
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${map[status] || map.Waiting}`}
+    >
       {status}
     </span>
   );
 }
 
 function fmtTime(iso: string) {
-  return iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+  return iso
+    ? new Date(iso).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
 }
 
 function fmtMs(ms: number) {
@@ -93,46 +120,80 @@ function JobHistorySubsection({ jobName }: { jobName: string }) {
   });
 
   if (isLoading || !data) {
-    return <div className="px-6 py-4 text-xs text-muted-foreground">Loading run history…</div>;
+    return (
+      <div className="px-6 py-4 text-xs text-muted-foreground">
+        Loading run history…
+      </div>
+    );
   }
 
   const totalCost = data.reduce((s, r) => s + r.cost, 0);
   const success = data.filter((r) => r.status === "Success").length;
-  const successRate = data.length ? Math.round((success / data.length) * 100) : 0;
-  const avgDur = data.length ? data.reduce((s, r) => s + r.durationMin, 0) / data.length : 0;
+  const successRate = data.length
+    ? Math.round((success / data.length) * 100)
+    : 0;
+  const avgDur = data.length
+    ? data.reduce((s, r) => s + r.durationMin, 0) / data.length
+    : 0;
 
   return (
     <div className="bg-slate-50 border-t border-b">
       <div className="px-6 py-3 border-b bg-white/60 flex items-center gap-6 text-xs">
         <span className="font-mono text-slate-700">{jobName}</span>
         <span className="text-muted-foreground">
-          Success rate: <span className="font-semibold text-slate-700">{successRate}%</span>
+          Success rate:{" "}
+          <span className="font-semibold text-slate-700">{successRate}%</span>
         </span>
         <span className="text-muted-foreground">
-          Avg duration: <span className="font-semibold text-slate-700">{avgDur.toFixed(1)}m</span>
+          Avg duration:{" "}
+          <span className="font-semibold text-slate-700">
+            {avgDur.toFixed(1)}m
+          </span>
         </span>
         <span className="text-muted-foreground">
-          Total cost (last {data.length}): <span className="font-semibold text-slate-700">${totalCost.toFixed(2)}</span>
+          Total cost (last {data.length}):{" "}
+          <span className="font-semibold text-slate-700">
+            ${totalCost.toFixed(2)}
+          </span>
         </span>
       </div>
       <Table>
         <TableHeader>
           <TableRow className="bg-slate-100/60 hover:bg-slate-100/60">
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Run ID</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Status</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Start Time</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Duration</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500 text-right">Cost</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Error</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Run ID
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Status
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Start Time
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Duration
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500 text-right">
+              Cost
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Error
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.map((r) => (
             <TableRow key={r.id} className="hover:bg-white">
-              <TableCell className="text-xs font-mono text-muted-foreground">{r.id}</TableCell>
+              <TableCell className="text-xs font-mono text-muted-foreground">
+                {r.id}
+              </TableCell>
               <TableCell>{statusBadge(r.status)}</TableCell>
               <TableCell className="text-xs text-muted-foreground">
-                {new Date(r.startTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                {new Date(r.startTime).toLocaleString([], {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </TableCell>
               <TableCell className="text-xs">
                 <span className="flex items-center gap-1">
@@ -140,12 +201,16 @@ function JobHistorySubsection({ jobName }: { jobName: string }) {
                   {r.durationMin.toFixed(1)}m
                 </span>
               </TableCell>
-              <TableCell className="text-xs text-right font-mono">${r.cost.toFixed(2)}</TableCell>
+              <TableCell className="text-xs text-right font-mono">
+                ${r.cost.toFixed(2)}
+              </TableCell>
               <TableCell className="text-[11px] text-red-600 font-mono max-w-[280px] truncate">
                 {r.errorMessage ? (
                   <span className="flex items-center gap-1">
                     <AlertCircle className="h-3 w-3 shrink-0" />
-                    <span className="truncate" title={r.errorMessage}>{r.errorMessage}</span>
+                    <span className="truncate" title={r.errorMessage}>
+                      {r.errorMessage}
+                    </span>
                   </span>
                 ) : (
                   <span className="text-muted-foreground">—</span>
@@ -181,47 +246,83 @@ function LambdaHistorySubsection({ functionName }: { functionName: string }) {
   });
 
   if (isLoading || !data) {
-    return <div className="px-6 py-4 text-xs text-muted-foreground">Loading invocation history…</div>;
+    return (
+      <div className="px-6 py-4 text-xs text-muted-foreground">
+        Loading invocation history…
+      </div>
+    );
   }
 
   const totalCost = data.reduce((s, r) => s + r.cost, 0);
   const success = data.filter((r) => r.status === "Success").length;
-  const successRate = data.length ? Math.round((success / data.length) * 100) : 0;
-  const avgMs = data.length ? data.reduce((s, r) => s + r.durationMs, 0) / data.length : 0;
+  const successRate = data.length
+    ? Math.round((success / data.length) * 100)
+    : 0;
+  const avgMs = data.length
+    ? data.reduce((s, r) => s + r.durationMs, 0) / data.length
+    : 0;
 
   return (
     <div className="bg-slate-50 border-t border-b">
       <div className="px-6 py-3 border-b bg-white/60 flex items-center gap-6 text-xs">
         <span className="font-mono text-slate-700">{functionName}</span>
         <span className="text-muted-foreground">
-          Success rate: <span className="font-semibold text-slate-700">{successRate}%</span>
+          Success rate:{" "}
+          <span className="font-semibold text-slate-700">{successRate}%</span>
         </span>
         <span className="text-muted-foreground">
-          Avg duration: <span className="font-semibold text-slate-700">{fmtMs(Math.round(avgMs))}</span>
+          Avg duration:{" "}
+          <span className="font-semibold text-slate-700">
+            {fmtMs(Math.round(avgMs))}
+          </span>
         </span>
         <span className="text-muted-foreground">
-          Total cost (last {data.length}): <span className="font-semibold text-slate-700">${totalCost.toFixed(4)}</span>
+          Total cost (last {data.length}):{" "}
+          <span className="font-semibold text-slate-700">
+            ${totalCost.toFixed(4)}
+          </span>
         </span>
       </div>
       <Table>
         <TableHeader>
           <TableRow className="bg-slate-100/60 hover:bg-slate-100/60">
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Invocation ID</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Status</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Start Time</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Duration</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Memory</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500 text-right">Cost</TableHead>
-            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Error</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Invocation ID
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Status
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Start Time
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Duration
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Memory
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500 text-right">
+              Cost
+            </TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">
+              Error
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.map((r) => (
             <TableRow key={r.id} className="hover:bg-white">
-              <TableCell className="text-xs font-mono text-muted-foreground">{r.id}</TableCell>
+              <TableCell className="text-xs font-mono text-muted-foreground">
+                {r.id}
+              </TableCell>
               <TableCell>{statusBadge(r.status)}</TableCell>
               <TableCell className="text-xs text-muted-foreground">
-                {new Date(r.startTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                {new Date(r.startTime).toLocaleString([], {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </TableCell>
               <TableCell className="text-xs">
                 <span className="flex items-center gap-1">
@@ -235,12 +336,16 @@ function LambdaHistorySubsection({ functionName }: { functionName: string }) {
                   {r.memoryMb} MB
                 </span>
               </TableCell>
-              <TableCell className="text-xs text-right font-mono">${r.cost.toFixed(4)}</TableCell>
+              <TableCell className="text-xs text-right font-mono">
+                ${r.cost.toFixed(4)}
+              </TableCell>
               <TableCell className="text-[11px] text-red-600 font-mono max-w-[280px] truncate">
                 {r.errorMessage ? (
                   <span className="flex items-center gap-1">
                     <AlertCircle className="h-3 w-3 shrink-0" />
-                    <span className="truncate" title={r.errorMessage}>{r.errorMessage}</span>
+                    <span className="truncate" title={r.errorMessage}>
+                      {r.errorMessage}
+                    </span>
                   </span>
                 ) : (
                   <span className="text-muted-foreground">—</span>
@@ -264,7 +369,9 @@ export default function ExecutiveOverview() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   // Reset expansion when switching account
-  useEffect(() => { setExpanded(null); }, [account.id]);
+  useEffect(() => {
+    setExpanded(null);
+  }, [account.id]);
 
   const [lambdaKpis, setLambdaKpis] = useState<LambdaKpis | null>(null);
   const [lambdaRuns, setLambdaRuns] = useState<LambdaRun[]>([]);
@@ -276,45 +383,128 @@ export default function ExecutiveOverview() {
       fetch(`${base}/api/lambdas/kpis`).then((r) => r.json()),
       fetch(`${base}/api/lambdas/runs`).then((r) => r.json()),
     ])
-      .then(([k, r]) => { setLambdaKpis(k); setLambdaRuns(r); })
-      .catch(() => { setLambdaKpis(null); setLambdaRuns([]); });
+      .then(([k, r]) => {
+        setLambdaKpis(k);
+        setLambdaRuns(r);
+      })
+      .catch(() => {
+        setLambdaKpis(null);
+        setLambdaRuns([]);
+      });
   }, [resourceType]);
 
   // Reset expansion when switching resource types
-  useEffect(() => { setExpanded(null); }, [resourceType]);
+  useEffect(() => {
+    setExpanded(null);
+  }, [resourceType]);
 
-  if (!kpis) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
+  if (!kpis)
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Loading...
+      </div>
+    );
 
   const mult = (DATE_MULTIPLIERS[dateRange] ?? 1) * accountScale;
   const isLambda = resourceType === "lambda";
 
   const totalCount = isLambda
-    ? Math.max(0, Math.round((lambdaKpis?.totalFunctions ?? 0) * mult * (dateRange === "today" ? 1 : 0.95)))
-    : Math.max(0, Math.round(kpis.totalPipelines * mult * (dateRange === "today" ? 1 : 0.9)));
+    ? Math.max(
+        0,
+        Math.round(
+          (lambdaKpis?.totalFunctions ?? 0) *
+            mult *
+            (dateRange === "today" ? 1 : 0.95),
+        ),
+      )
+    : Math.max(
+        0,
+        Math.round(
+          kpis.totalPipelines * mult * (dateRange === "today" ? 1 : 0.9),
+        ),
+      );
   const healthyCount = isLambda
-    ? Math.max(0, Math.round((lambdaKpis?.healthy ?? 0) * mult * (dateRange === "today" ? 1 : 0.92)))
-    : Math.max(0, Math.round(kpis.healthy * mult * (dateRange === "today" ? 1 : 0.88)));
+    ? Math.max(
+        0,
+        Math.round(
+          (lambdaKpis?.healthy ?? 0) *
+            mult *
+            (dateRange === "today" ? 1 : 0.92),
+        ),
+      )
+    : Math.max(
+        0,
+        Math.round(kpis.healthy * mult * (dateRange === "today" ? 1 : 0.88)),
+      );
   const failedCount = isLambda
-    ? Math.max(0, Math.round((lambdaKpis?.withErrors ?? 0) * mult * (dateRange === "today" ? 1 : 1.08)))
-    : Math.max(0, Math.round((kpis.failed + kpis.degraded) * mult * (dateRange === "today" ? 1 : 1.05)));
+    ? Math.max(
+        0,
+        Math.round(
+          (lambdaKpis?.withErrors ?? 0) *
+            mult *
+            (dateRange === "today" ? 1 : 1.08),
+        ),
+      )
+    : Math.max(
+        0,
+        Math.round(
+          (kpis.failed + kpis.degraded) *
+            mult *
+            (dateRange === "today" ? 1 : 1.05),
+        ),
+      );
 
   const totalLabel = isLambda ? "Total Functions" : "Total Jobs";
   const healthyLabel = isLambda ? "Healthy Functions" : "Healthy Jobs";
   const failedLabel = isLambda ? "Functions with Errors" : "Failed Jobs";
-  const totalSubtitle = isLambda ? "Across all Lambda functions" : "Across all pipelines";
+  const totalSubtitle = isLambda
+    ? "Across all Lambda functions"
+    : "Across all pipelines";
   const tableTitle = isLambda ? "Active Invocations" : "Active Jobs";
   const idHeader = isLambda ? "Invocation ID" : "Job ID";
   const nameHeader = isLambda ? "Function Name" : "Job Name";
   const costHeader = isLambda ? "Cost/Invocation" : "Cost/Run";
 
-  const jobRuns: JobRun[] = (runs as JobRun[] | undefined) ?? [];
+  const jobRuns: JobRun[] = (
+    Array.isArray(runsData) ? runsData : []
+  ) as JobRun[];
 
-  type Row = { id: string; name: string; status: string; startTime: string; endTime: string; duration: string; cost: number; expandable: boolean };
+  type Row = {
+    id: string;
+    name: string;
+    status: string;
+    startTime: string;
+    endTime: string;
+    duration: string;
+    cost: number;
+    expandable: boolean;
+  };
   const allRows: Row[] = isLambda
-    ? lambdaRuns.map((r) => ({ id: r.id, name: r.functionName, status: r.status, startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun, expandable: true }))
-    : jobRuns.map((r) => ({ id: r.id, name: r.pipelineName, status: r.status, startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun, expandable: true }));
+    ? lambdaRuns.map((r) => ({
+        id: r.id,
+        name: r.functionName,
+        status: r.status,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        duration: r.duration,
+        cost: r.costPerRun,
+        expandable: true,
+      }))
+    : jobRuns.map((r) => ({
+        id: r.id,
+        name: r.pipelineName,
+        status: r.status,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        duration: r.duration,
+        cost: r.costPerRun,
+        expandable: true,
+      }));
   // Slice rows proportional to selected account so the table reflects the scope
-  const rowKeep = account.id === "all" ? allRows.length : Math.max(1, Math.ceil(allRows.length * accountScale));
+  const rowKeep =
+    account.id === "all"
+      ? allRows.length
+      : Math.max(1, Math.ceil(allRows.length * accountScale));
   const rows: Row[] = allRows.slice(0, rowKeep);
 
   return (
@@ -322,13 +512,20 @@ export default function ExecutiveOverview() {
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
-          <h2 className="text-xl font-bold tracking-tight">Executive Overview</h2>
+          <h2 className="text-xl font-bold tracking-tight">
+            Executive Overview
+          </h2>
           <p className="text-xs text-muted-foreground">
-            {isLambda ? "Lambda function health and key performance indicators" : "Job health and key performance indicators"}
+            {isLambda
+              ? "Lambda function health and key performance indicators"
+              : "Job health and key performance indicators"}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={resourceType} onValueChange={(v) => setResourceType(v as "job" | "lambda")}>
+          <Select
+            value={resourceType}
+            onValueChange={(v) => setResourceType(v as "job" | "lambda")}
+          >
             <SelectTrigger className="h-8 w-[130px] text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -356,9 +553,15 @@ export default function ExecutiveOverview() {
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{totalLabel}</p>
-                <p className="text-2xl font-bold text-slate-800 leading-tight">{totalCount.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground">{totalSubtitle}</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {totalLabel}
+                </p>
+                <p className="text-2xl font-bold text-slate-800 leading-tight">
+                  {totalCount.toLocaleString()}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {totalSubtitle}
+                </p>
               </div>
               <div className="p-2 rounded-lg bg-blue-50">
                 <Briefcase className="h-5 w-5 text-blue-500" />
@@ -371,10 +574,17 @@ export default function ExecutiveOverview() {
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{healthyLabel}</p>
-                <p className="text-2xl font-bold text-emerald-600 leading-tight">{healthyCount.toLocaleString()}</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {healthyLabel}
+                </p>
+                <p className="text-2xl font-bold text-emerald-600 leading-tight">
+                  {healthyCount.toLocaleString()}
+                </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {totalCount > 0 ? Math.round((healthyCount / totalCount) * 100) : 0}% success rate
+                  {totalCount > 0
+                    ? Math.round((healthyCount / totalCount) * 100)
+                    : 0}
+                  % success rate
                 </p>
               </div>
               <div className="p-2 rounded-lg bg-emerald-50">
@@ -388,10 +598,17 @@ export default function ExecutiveOverview() {
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{failedLabel}</p>
-                <p className="text-2xl font-bold text-red-600 leading-tight">{failedCount.toLocaleString()}</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {failedLabel}
+                </p>
+                <p className="text-2xl font-bold text-red-600 leading-tight">
+                  {failedCount.toLocaleString()}
+                </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {totalCount > 0 ? Math.round((failedCount / totalCount) * 100) : 0}% failure rate
+                  {totalCount > 0
+                    ? Math.round((failedCount / totalCount) * 100)
+                    : 0}
+                  % failure rate
                 </p>
               </div>
               <div className="p-2 rounded-lg bg-red-50">
@@ -409,13 +626,16 @@ export default function ExecutiveOverview() {
             <CardTitle className="text-sm font-medium">{tableTitle}</CardTitle>
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Running
+                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />{" "}
+                Running
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Success
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />{" "}
+                Success
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Failed
+                <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{" "}
+                Failed
               </span>
             </div>
           </div>
@@ -447,29 +667,51 @@ export default function ExecutiveOverview() {
                   <Fragment key={row.id}>
                     <TableRow
                       className={`group ${row.expandable ? "cursor-pointer" : ""} ${isExpanded ? "bg-slate-50" : ""}`}
-                      onClick={() => row.expandable && setExpanded(isExpanded ? null : row.name)}
+                      onClick={() =>
+                        row.expandable &&
+                        setExpanded(isExpanded ? null : row.name)
+                      }
                     >
                       <TableCell className="py-2">
                         {row.expandable ? (
                           <button
                             type="button"
-                            aria-label={isExpanded ? "Collapse details" : "Expand details"}
+                            aria-label={
+                              isExpanded ? "Collapse details" : "Expand details"
+                            }
                             className="flex items-center justify-center h-5 w-5 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                            onClick={(e) => { e.stopPropagation(); setExpanded(isExpanded ? null : row.name); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpanded(isExpanded ? null : row.name);
+                            }}
                           >
-                            {isExpanded ? <Minus className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                            {isExpanded ? (
+                              <Minus className="h-3 w-3" />
+                            ) : (
+                              <Plus className="h-3 w-3" />
+                            )}
                           </button>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground py-2">{row.id}</TableCell>
+                      <TableCell className="text-xs font-mono text-muted-foreground py-2">
+                        {row.id}
+                      </TableCell>
                       <TableCell className="py-2">
-                        <span className={`text-xs font-medium ${row.expandable ? "text-primary" : "text-slate-700"}`}>
+                        <span
+                          className={`text-xs font-medium ${row.expandable ? "text-primary" : "text-slate-700"}`}
+                        >
                           {row.name}
                         </span>
                       </TableCell>
-                      <TableCell className="py-2">{statusBadge(row.status)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground py-2">{fmtTime(row.startTime)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground py-2">{fmtTime(row.endTime)}</TableCell>
+                      <TableCell className="py-2">
+                        {statusBadge(row.status)}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground py-2">
+                        {fmtTime(row.startTime)}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground py-2">
+                        {fmtTime(row.endTime)}
+                      </TableCell>
                       <TableCell className="text-xs py-2">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3 text-muted-foreground" />
@@ -478,7 +720,12 @@ export default function ExecutiveOverview() {
                       </TableCell>
                       <TableCell className="text-xs text-right font-mono py-2">
                         {row.cost > 0 ? (
-                          <span className="font-medium text-slate-700">${isLambda ? row.cost.toFixed(4) : row.cost.toFixed(2)}</span>
+                          <span className="font-medium text-slate-700">
+                            $
+                            {isLambda
+                              ? row.cost.toFixed(4)
+                              : row.cost.toFixed(2)}
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
@@ -487,9 +734,11 @@ export default function ExecutiveOverview() {
                     {isExpanded && row.expandable && (
                       <TableRow className="hover:bg-transparent">
                         <TableCell colSpan={8} className="p-0">
-                          {isLambda
-                            ? <LambdaHistorySubsection functionName={row.name} />
-                            : <JobHistorySubsection jobName={row.name} />}
+                          {isLambda ? (
+                            <LambdaHistorySubsection functionName={row.name} />
+                          ) : (
+                            <JobHistorySubsection jobName={row.name} />
+                          )}
                         </TableCell>
                       </TableRow>
                     )}
