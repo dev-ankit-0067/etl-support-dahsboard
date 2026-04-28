@@ -1,6 +1,6 @@
 """Application configuration loaded from environment variables."""
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -63,6 +63,22 @@ class Settings(BaseSettings):
 
     # ---- SSM Incident Manager ----
     ssm_response_plan_arn: Optional[str] = None
+
+    # ---- Jira Integration ----
+    jira_url: Optional[str] = None
+    jira_username: Optional[str] = None
+    jira_api_token: Optional[str] = None
+    jira_project_key: str = Field(default="SCRUM", description="Jira project key for incident board")
+    use_jira_incidents: bool = Field(default=False, description="Use Jira as incident source instead of SSM")
+    jira_issue_type: str = Field(default="Bug", description="Jira issue type to track as incidents")
+    jira_status_mapping: dict = Field(
+        default_factory=lambda: {"To Do": "Open", "In Progress": "Investigating", "In Review": "Mitigating", "Done": "Resolved"},
+        description="Map Jira status to incident status"
+    )
+    jira_priority_mapping: dict = Field(
+        default_factory=lambda: {"Highest": "P1", "High": "P2", "Medium": "P3", "Low": "P4"},
+        description="Map Jira priority to severity"
+    )
 
 
 @lru_cache(maxsize=1)

@@ -10,6 +10,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from ..aws import client
 from ..cache import cached
+from ..config import get_settings
 from ..models.incidents import (
     IncidentDistributionItem,
     IncidentRecord,
@@ -55,6 +56,11 @@ def list_incidents(days: int = 30) -> List[dict]:
 
 @cached("short")
 def summary() -> IncidentSummary:
+    settings = get_settings()
+    if settings.use_jira_incidents:
+        from .jira_service import summary as jira_summary
+        return jira_summary()
+
     items = list_incidents(days=7)
     counts = Counter()
     sev_counts = Counter()
@@ -79,6 +85,10 @@ def summary() -> IncidentSummary:
 
 @cached("medium")
 def mttr_trend(days: int = 14) -> List[MttrTrendPoint]:
+    settings = get_settings()
+    if settings.use_jira_incidents:
+        return []
+
     items = list_incidents(days=days)
     daily: dict = {}
     for d in range(days):
@@ -115,6 +125,10 @@ def mttr_trend(days: int = 14) -> List[MttrTrendPoint]:
 
 @cached("medium")
 def distribution() -> List[IncidentDistributionItem]:
+    settings = get_settings()
+    if settings.use_jira_incidents:
+        return []
+
     items = list_incidents(days=30)
     counter = Counter(_IMPACT_TO_SEVERITY.get(it.get("impact", 3), "P3") for it in items)
     return [IncidentDistributionItem(severity=k, count=v) for k, v in sorted(counter.items())]
@@ -122,6 +136,11 @@ def distribution() -> List[IncidentDistributionItem]:
 
 @cached("short")
 def list_records(limit: int = 50) -> List[IncidentRecord]:
+    settings = get_settings()
+    if settings.use_jira_incidents:
+        from .jira_service import list_records as jira_list_records
+        return jira_list_records(limit=limit)
+
     items = list_incidents(days=14)[:limit]
     out: List[IncidentRecord] = []
     for it in items:

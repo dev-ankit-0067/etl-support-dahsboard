@@ -10,6 +10,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from ..aws import client
 from ..cache import cached
+from ..config import get_settings
 from ..models.rca import LifecycleStage, RcaLifecycle, RepeatIncident
 
 log = logging.getLogger(__name__)
@@ -19,6 +20,16 @@ _STAGE_ORDER = ["Detect", "Acknowledge", "Mitigate", "Resolve", "RCA Published"]
 
 @cached("medium")
 def lifecycle(days: int = 30) -> RcaLifecycle:
+    settings = get_settings()
+    if settings.use_jira_incidents:
+        return RcaLifecycle(stages=[
+            LifecycleStage(stage="Detect", avgMinutes=0),
+            LifecycleStage(stage="Acknowledge", avgMinutes=0),
+            LifecycleStage(stage="Mitigate", avgMinutes=0),
+            LifecycleStage(stage="Resolve", avgMinutes=0),
+            LifecycleStage(stage="RCA Published", avgMinutes=0),
+        ])
+
     si = client("ssm-incidents")
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     detect: List[float] = []
@@ -72,6 +83,10 @@ def lifecycle(days: int = 30) -> RcaLifecycle:
 
 @cached("medium")
 def repeat_incidents(days: int = 30, top_n: int = 10) -> List[RepeatIncident]:
+    settings = get_settings()
+    if settings.use_jira_incidents:
+        return []
+
     si = client("ssm-incidents")
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     pipeline_counts: Counter = Counter()
