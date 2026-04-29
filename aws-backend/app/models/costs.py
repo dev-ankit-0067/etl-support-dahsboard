@@ -27,3 +27,27 @@ class CostTrendPoint(BaseModel):
 class CostPerformance(BaseModel):
     costVsPipeline: List[CostTrendPoint]
     costRanges: Dict[str, List[CostTrendPoint]]
+
+
+class ServiceTrendSeries(BaseModel):
+    glue: List[CostTrendPoint]
+    lambda_: List[CostTrendPoint]  # Using lambda_ to avoid keyword conflict
+    all: List[CostTrendPoint]
+
+    class Config:
+        fields = {"lambda_": {"alias": "lambda"}}
+        populate_by_name = True
+
+
+class ServiceTrend(BaseModel):
+    ranges_7d: ServiceTrendSeries
+    ranges_30d: ServiceTrendSeries
+    ranges_60d: ServiceTrendSeries
+
+    class Config:
+        fields = {
+            "ranges_7d": {"alias": "7d"},
+            "ranges_30d": {"alias": "30d"},
+            "ranges_60d": {"alias": "60d"},
+        }
+        populate_by_name = True

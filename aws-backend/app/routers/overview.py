@@ -12,7 +12,7 @@ from ..models.overview import (
     JobStatusPoint,
     OverviewKpis,
 )
-from ..services import glue_service, incidents_service
+from ..services import glue_service
 
 try:
     from ..services import jira_service
@@ -26,8 +26,6 @@ router = APIRouter(prefix="/overview", tags=["overview"])
 
 @router.get("/kpis", response_model=OverviewKpis)
 def kpis() -> OverviewKpis:
-    settings = get_settings()
-    
     try:
         jobs = glue_service.list_jobs()
         live = glue_service.live_status()
@@ -40,22 +38,16 @@ def kpis() -> OverviewKpis:
         live = LiveStatus(success=0, failed=0, timedOut=0, delayed=0, waitingUpstream=0)
         failed_recent = []
     
-    # Use Jira or SSM incidents service
-    if settings.use_jira_incidents and jira_service:
+    if jira_service:
         try:
             inc_summary = jira_service.summary()
         except Exception as exc:
-            log.error("Jira summary failed in KPIs: %s", exc)
-            # Fallback to empty summary
+            log.error("Jira summary failed: %s", exc)
             from ..models.incidents import IncidentSummary
             inc_summary = IncidentSummary(open=0, acknowledged=0, resolved24h=0, p1=0, p2=0, p3=0)
     else:
-        try:
-            inc_summary = incidents_service.summary()
-        except Exception as exc:
-            log.error("Incidents service summary failed: %s", exc)
-            from ..models.incidents import IncidentSummary
-            inc_summary = IncidentSummary(open=0, acknowledged=0, resolved24h=0, p1=0, p2=0, p3=0)
+        from ..models.incidents import IncidentSummary
+        inc_summary = IncidentSummary(open=0, acknowledged=0, resolved24h=0, p1=0, p2=0, p3=0)
     
     total = len(jobs)
     failed = live.failed + live.timedOut
@@ -120,17 +112,14 @@ def failed_jobs() -> List[FailedJob]:
 
 @router.get("/active-incidents", response_model=List[ActiveIncident])
 def active_incidents() -> List[ActiveIncident]:
-    settings = get_settings()
-    
-    # Use Jira or SSM incidents service
-    if settings.use_jira_incidents and jira_service:
+    if jira_service:
         try:
             records = jira_service.list_records()
         except Exception as exc:
-            log.error("Jira list_records failed in active_incidents: %s", exc)
+            log.error("Jira list_records failed: %s", exc)
             records = []
     else:
-        records = incidents_service.list_records()
+        records = []
     
     return [
         ActiveIncident(

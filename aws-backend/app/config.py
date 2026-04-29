@@ -61,15 +61,12 @@ class Settings(BaseSettings):
     )
     sla_breach_minutes: int = 60
 
-    # ---- SSM Incident Manager ----
-    ssm_response_plan_arn: Optional[str] = None
-
     # ---- Jira Integration ----
     jira_url: Optional[str] = None
     jira_username: Optional[str] = None
     jira_api_token: Optional[str] = None
     jira_project_key: str = Field(default="SCRUM", description="Jira project key for incident board")
-    use_jira_incidents: bool = Field(default=False, description="Use Jira as incident source instead of SSM")
+    use_jira_incidents: bool = Field(default=True, description="Use Jira as incident source instead of SSM for incidents and RCA")
     jira_issue_type: str = Field(default="Bug", description="Jira issue type to track as incidents")
     jira_status_mapping: dict = Field(
         default_factory=lambda: {"To Do": "Open", "In Progress": "Investigating", "In Review": "Mitigating", "Done": "Resolved"},

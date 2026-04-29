@@ -3,7 +3,7 @@ import { useAccount } from "@/contexts/AccountContext";
 import {
   useGetIncidentSummary,
   useGetActiveIncidents,
-  useGetRcaLifecycle,
+  useGetRepeatIncidents,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -169,14 +169,14 @@ function HorizontalTimeline({ incident }: { incident: Incident }) {
 }
 
 function IncidentDetailSubsection({ incident }: { incident: Incident }) {
-  const { data: lifecycle } = useGetRcaLifecycle();
+  const { data: repeats } = useGetRepeatIncidents();
 
-  const rcaEntry = lifecycle?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
+  const rcaEntry = repeats?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
   const isResolved = incident.status === "Resolved";
 
-  const daysOpen = rcaEntry?.daysOpen ?? 2;
+  const daysOpen = rcaEntry?.lastOccurrence ? Math.floor((Date.now() - new Date(rcaEntry.lastOccurrence).getTime()) / (1000 * 60 * 60 * 24)) : 2;
 
-  const rcaSummary = rcaEntry?.rcaSummary ||
+  const rcaSummary = rcaEntry?.rootCause ||
     (isResolved
       ? "A schema mismatch introduced during the latest upstream release caused repeated job failures until the pipeline was rolled back and the source contract was corrected."
       : "Investigation in progress. Initial analysis points to an upstream change introducing unexpected payload variance; on-call team is collecting trace data and validating recent deployments.");

@@ -10,6 +10,7 @@ from jira.exceptions import JIRAError
 
 from ..config import get_settings
 from ..models.incidents import IncidentRecord, IncidentSummary
+from ..models.rca import LifecycleStage, RcaLifecycle, RepeatIncident
 from ..cache import cached
 
 log = logging.getLogger(__name__)
@@ -168,7 +169,7 @@ def summary() -> IncidentSummary:
                 # Count resolved in last 24h
                 if status == "Resolved":
                     try:
-                        resolved_str = issue.fields.updated
+                        resolved_str = issue.fields.resolutiondate or issue.fields.updated
                         resolved = datetime.fromisoformat(resolved_str.replace("Z", "+00:00"))
                         if resolved >= cutoff:
                             resolved_24h += 1
@@ -190,3 +191,79 @@ def summary() -> IncidentSummary:
     except Exception as exc:
         log.error("Error generating Jira incident summary: %s", exc)
         raise
+
+
+def _parse_datetime(value: Optional[str]):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _avg(xs: List[float]) -> float:
+    return round(sum(xs) / len(xs), 2) if xs else 0.0
+
+
+def _resolution_time(created: Optional[str], resolution: Optional[str]) -> Optional[float]:
+    created_dt = _parse_datetime(created)
+    resolution_dt = _parse_datetime(resolution)
+    if not created_dt or not resolution_dt:
+        return None
+    return (resolution_dt - created_dt).total_seconds() / 60.0
+
+
+@cached("medium")
+def rca_lifecycle(days: int = 30) -> RcaLifecycle:
+    issues = list_issues(days=days)
+    resolve: List[float] = []
+
+    for issue in issues:
+        try:
+            duration = _resolution_time(issue.fields.created, getattr(issue.fields, "resolutiondate", None))
+            if duration is not None:
+                resolve.append(duration)
+        except Exception as exc:
+            log.warning("Error computing RCA lifecycle for issue %s: %s", issue.key, exc)
+            continue
+
+    stages = [
+        LifecycleStage(stage="Detect", avgMinutes=0.0),
+        LifecycleStage(stage="Acknowledge", avgMinutes=0.0),
+        LifecycleStage(stage="Mitigate", avgMinutes=0.0),
+        LifecycleStage(stage="Resolve", avgMinutes=_avg(resolve)),
+        LifecycleStage(stage="RCA Published", avgMinutes=0.0),
+    ]
+
+    return RcaLifecycle(stages=stages)
+
+
+@cached("medium")
+def rca_repeat_incidents(days: int = 30, top_n: int = 10) -> List[RepeatIncident]:
+    records = list_records(limit=100)
+    counts: dict[str, int] = {}
+    last_seen: dict[str, str] = {}
+    causes: dict[str, str] = {}
+
+    for record in records:
+        pipeline = record.pipeline or "Unknown"
+        counts[pipeline] = counts.get(pipeline, 0) + 1
+        if pipeline not in last_seen or record.createdAt > last_seen[pipeline]:
+            last_seen[pipeline] = record.createdAt
+            causes[pipeline] = record.title
+
+    out: List[RepeatIncident] = []
+    for pipeline, count in sorted(counts.items(), key=lambda item: item[1], reverse=True)[:top_n]:
+        if count < 2:
+            continue
+        out.append(
+            RepeatIncident(
+                pipeline=pipeline,
+                occurrences=count,
+                lastSeen=last_seen[pipeline],
+                rootCause=causes.get(pipeline, "Unknown"),
+            )
+        )
+
+    return out

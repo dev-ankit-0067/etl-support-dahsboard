@@ -16,6 +16,8 @@ from ..models.costs import (
     CostKpis,
     CostPerformance,
     CostTrendPoint,
+    ServiceTrend,
+    ServiceTrendSeries,
 )
 
 log = logging.getLogger(__name__)
@@ -147,4 +149,60 @@ def performance() -> CostPerformance:
     return CostPerformance(
         costVsPipeline=weekly,
         costRanges={"today": today_pt, "7d": weekly, "30d": monthly},
+    )
+
+
+def _trend_by_service(days: int, service: str) -> List[CostTrendPoint]:
+    """Fetch cost trend for a specific AWS service."""
+    ce = _ce_client()
+    end = _today() + timedelta(days=1)
+    start = end - timedelta(days=days)
+    try:
+        resp = ce.get_cost_and_usage(
+            TimePeriod={"Start": start.isoformat(), "End": end.isoformat()},
+            Granularity="DAILY",
+            Metrics=["UnblendedCost"],
+            Filter={
+                "Dimensions": {
+                    "Key": "SERVICE",
+                    "Values": [service],
+                }
+            },
+        )
+    except (BotoCoreError, ClientError) as exc:
+        log.error("trend_by_service(%d, %s) failed: %s", days, service, exc)
+        return []
+    out: List[CostTrendPoint] = []
+    for r in resp.get("ResultsByTime", []):
+        out.append(
+            CostTrendPoint(
+                date=r["TimePeriod"]["Start"],
+                cost=round(float(r["Total"]["UnblendedCost"]["Amount"] or 0.0), 2),
+            )
+        )
+    return out
+
+
+@cached("long")
+def service_trend() -> ServiceTrend:
+    """Get cost trends for Glue and Lambda services over 7d, 30d, and 60d windows."""
+    def build_range(days: int) -> ServiceTrendSeries:
+        glue = _trend_by_service(days, "AWS Glue")
+        lambda_ = _trend_by_service(days, "AWS Lambda")
+        # Combine both services
+        combined = []
+        for i, g in enumerate(glue):
+            if i < len(lambda_):
+                combined.append(
+                    CostTrendPoint(
+                        date=g.date,
+                        cost=round(g.cost + lambda_[i].cost, 2),
+                    )
+                )
+        return ServiceTrendSeries(glue=glue, lambda_=lambda_, all=combined)
+
+    return ServiceTrend(
+        ranges_7d=build_range(7),
+        ranges_30d=build_range(30),
+        ranges_60d=build_range(60),
     )

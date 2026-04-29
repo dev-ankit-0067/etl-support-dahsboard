@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from ..models.costs import CostBreakdown, CostKpis, CostPerformance
+from ..models.costs import CostBreakdown, CostKpis, CostPerformance, ServiceTrend
 from ..services import costs_service
 
 router = APIRouter(prefix="/costs", tags=["costs"])
@@ -19,3 +19,8 @@ def breakdown() -> CostBreakdown:
 @router.get("/performance", response_model=CostPerformance)
 def performance() -> CostPerformance:
     return costs_service.performance()
+
+
+@router.get("/service-trend", response_model=ServiceTrend)
+def service_trend() -> ServiceTrend:
+    return costs_service.service_trend()
