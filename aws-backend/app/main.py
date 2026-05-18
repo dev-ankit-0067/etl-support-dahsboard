@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from . import __version__
 from .config import get_settings
 from .logging_config import configure_logging
-from .routers import cloudwatch, costs, health, incidents, lambdas, overview, pipelines, rca
+from .routers import agents, cloudwatch, costs, health, incidents, lambdas, overview, pipelines, rca
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_allow_origins,
         allow_credentials=True,
-        allow_methods=["GET", "OPTIONS"],
+        allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
 
@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
         costs.router,
         rca.router,
         cloudwatch.router,
+        agents.router,
     ]
     for r in api_routers:
         app.include_router(r, prefix=settings.api_prefix)

@@ -193,6 +193,32 @@ def summary() -> IncidentSummary:
         raise
 
 
+def create_ticket(
+    summary: str,
+    description: str,
+    priority: str = "Medium",
+    issue_type: Optional[str] = None,
+) -> str:
+    """Create a Jira issue and return its key (e.g. 'SCRUM-42')."""
+    settings = get_settings()
+    client = JiraClient.get_client()
+    resolved_type = issue_type or settings.jira_issue_type
+
+    try:
+        issue = client.create_issue(
+            project=settings.jira_project_key,
+            summary=summary,
+            description=description,
+            issuetype={"name": resolved_type},
+            priority={"name": priority},
+        )
+        log.info("Created Jira issue: %s", issue.key)
+        return issue.key
+    except JIRAError as exc:
+        log.error("Failed to create Jira issue: %s", exc)
+        raise
+
+
 def _parse_datetime(value: Optional[str]):
     if not value:
         return None
