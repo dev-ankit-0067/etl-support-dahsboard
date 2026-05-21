@@ -4,10 +4,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
+from langchain.agents import create_agent
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-from langgraph.prebuilt import create_react_agent
 
 from ..config import get_settings
 from ..services import cloudwatch_service
@@ -106,10 +106,10 @@ When given a Glue job run ID:
 def run_log_analysis_agent(log_id: str) -> Dict[str, Any]:
     """Fetch and analyse CloudWatch logs for a Glue job run using a LangChain agent."""
     llm = _get_chat_model()
-    agent = create_react_agent(
+    agent = create_agent(
         model=llm,
         tools=[fetch_cloudwatch_logs],
-        prompt=_LOG_ANALYSIS_SYSTEM,
+        system_prompt=_LOG_ANALYSIS_SYSTEM,
     )
 
     result = agent.invoke({"messages": [("human", f"Analyse logs for job ID: {log_id}")]})
@@ -126,10 +126,10 @@ def run_log_analysis_agent(log_id: str) -> Dict[str, Any]:
 def run_jira_creation_agent(log_id: str) -> Dict[str, Any]:
     """Fetch logs, analyse them, and create a Jira ticket via a LangChain agent."""
     llm = _get_chat_model()
-    agent = create_react_agent(
+    agent = create_agent(
         model=llm,
         tools=[fetch_cloudwatch_logs, create_jira_ticket],
-        prompt=_JIRA_CREATION_SYSTEM,
+        system_prompt=_JIRA_CREATION_SYSTEM,
     )
 
     result = agent.invoke({
