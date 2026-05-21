@@ -4,10 +4,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langgraph.prebuilt import create_react_agent
 
 from ..config import get_settings
 from ..services import cloudwatch_service
@@ -30,8 +30,7 @@ def fetch_cloudwatch_logs(job_id: str) -> str:
             f"No log events found for job '{job_id}'. "
             f"Message: {data.get('message', 'Unknown error')}"
         )
-    lines = [f"[{e['timestamp']}] {e['message']}" for e in events]
-    return "\n".join(lines)
+    return "\n".join(f"[{e['timestamp']}] {e['message']}" for e in events)
 
 
 @tool
@@ -39,8 +38,8 @@ def create_jira_ticket(summary: str, description: str, priority: str = "Medium")
     """Create a Jira issue for an ETL pipeline incident. Returns the created ticket key.
 
     Args:
-        summary: Short one-line title for the ticket (include severity, e.g. '[P1] ...').
-        description: Full incident description including root cause and remediation steps.
+        summary: Short one-line title (include severity, e.g. '[P1] pipeline: issue').
+        description: Full incident description with root cause and remediation steps.
         priority: Jira priority — one of Highest, High, Medium, Low.
     """
     return jira_service.create_ticket(
@@ -59,7 +58,7 @@ def _get_chat_model() -> ChatHuggingFace:
     endpoint = HuggingFaceEndpoint(
         repo_id=settings.huggingface_model,
         huggingfacehub_api_token=settings.huggingface_api_token,
-        task="text-generation",
+        task="conversational",          # required for chat completions endpoint
         max_new_tokens=4096,
         temperature=0.1,
     )
@@ -67,13 +66,10 @@ def _get_chat_model() -> ChatHuggingFace:
 
 
 # ---------------------------------------------------------------------------
-# Prompts
+# System prompts
 # ---------------------------------------------------------------------------
 
-_LOG_ANALYSIS_PROMPT = ChatPromptTemplate.from_messages([
-    (
-        "system",
-        """You are an expert AWS ETL pipeline operations engineer.
+_LOG_ANALYSIS_SYSTEM = """You are an expert AWS ETL pipeline operations engineer.
 
 When given a Glue job run ID:
 1. Call fetch_cloudwatch_logs to retrieve the logs.
@@ -83,40 +79,24 @@ When given a Glue job run ID:
    P3 (non-critical warning), P4 (informational).
 5. Suggest concrete remediation steps.
 
-Respond with a structured analysis in this format:
+Respond with a structured analysis in this exact format:
 **Summary:** <one-line description>
 **Severity:** <P1/P2/P3/P4>
 **Root Cause:** <what caused the failure>
 **Affected Component:** <which stage/transform/connection failed>
 **Remediation:** <numbered list of fix steps>
-**Details:** <full analysis with relevant log excerpts>""",
-    ),
-    ("human", "{input}"),
-    MessagesPlaceholder("agent_scratchpad"),
-])
+**Details:** <full analysis with relevant log excerpts>"""
 
-_JIRA_CREATION_PROMPT = ChatPromptTemplate.from_messages([
-    (
-        "system",
-        """You are an expert AWS ETL pipeline operations engineer with access to CloudWatch and Jira.
+_JIRA_CREATION_SYSTEM = """You are an expert AWS ETL pipeline operations engineer with access to CloudWatch and Jira.
 
 When given a Glue job run ID:
 1. Call fetch_cloudwatch_logs to retrieve the logs.
-2. Analyse the logs to identify root cause, severity, and affected components.
+2. Analyse the logs: identify root cause, severity, and affected components.
 3. Call create_jira_ticket with:
-   - summary: "[<SEVERITY>] <pipeline_name>: <one-line issue>" (e.g. "[P1] fin_gl_ledger_sync: ConnectionTimeout")
-   - description: full markdown-formatted incident report including:
-       * Error details and log excerpts
-       * Timestamps
-       * Root cause analysis
-       * Affected pipeline / component
-       * Recommended remediation steps
-   - priority: map P1→Highest, P2→High, P3→Medium, P4→Low
-4. After creating the ticket, report back with your full analysis AND the Jira ticket key.""",
-    ),
-    ("human", "{input}"),
-    MessagesPlaceholder("agent_scratchpad"),
-])
+   - summary: "[<SEVERITY>] <pipeline_name>: <one-line issue>"
+   - description: full markdown incident report (error details, timestamps, root cause, remediation)
+   - priority: P1→Highest, P2→High, P3→Medium, P4→Low
+4. Confirm the Jira ticket key and provide your full structured analysis."""
 
 
 # ---------------------------------------------------------------------------
@@ -124,48 +104,49 @@ When given a Glue job run ID:
 # ---------------------------------------------------------------------------
 
 def run_log_analysis_agent(log_id: str) -> Dict[str, Any]:
-    """Fetch and analyse CloudWatch logs for a Glue job run using an LLM agent."""
+    """Fetch and analyse CloudWatch logs for a Glue job run using a LangChain agent."""
     llm = _get_chat_model()
-    tools = [fetch_cloudwatch_logs]
+    agent = create_react_agent(
+        model=llm,
+        tools=[fetch_cloudwatch_logs],
+        prompt=_LOG_ANALYSIS_SYSTEM,
+    )
 
-    agent = create_tool_calling_agent(llm, tools, _LOG_ANALYSIS_PROMPT)
-    executor = AgentExecutor(agent=agent, tools=tools, verbose=True, max_iterations=5)
+    result = agent.invoke({"messages": [("human", f"Analyse logs for job ID: {log_id}")]})
+    output = result["messages"][-1].content
 
-    result = executor.invoke({"input": f"Analyse logs for job ID: {log_id}"})
     return {
         "log_id": log_id,
         "type": "log",
-        "analysis": result.get("output", ""),
+        "analysis": output,
         "jira_key": None,
     }
 
 
 def run_jira_creation_agent(log_id: str) -> Dict[str, Any]:
-    """Fetch logs, analyse them, and create a Jira ticket via an LLM agent."""
+    """Fetch logs, analyse them, and create a Jira ticket via a LangChain agent."""
     llm = _get_chat_model()
-    tools = [fetch_cloudwatch_logs, create_jira_ticket]
-
-    agent = create_tool_calling_agent(llm, tools, _JIRA_CREATION_PROMPT)
-    executor = AgentExecutor(
-        agent=agent,
-        tools=tools,
-        verbose=True,
-        max_iterations=8,
-        return_intermediate_steps=True,
+    agent = create_react_agent(
+        model=llm,
+        tools=[fetch_cloudwatch_logs, create_jira_ticket],
+        prompt=_JIRA_CREATION_SYSTEM,
     )
 
-    result = executor.invoke({"input": f"Analyse logs and create a Jira ticket for job ID: {log_id}"})
+    result = agent.invoke({
+        "messages": [("human", f"Analyse logs and create a Jira ticket for job ID: {log_id}")]
+    })
+    output = result["messages"][-1].content
 
-    # Extract the Jira key from the tool call observation
+    # Extract Jira key from the ToolMessage emitted by create_jira_ticket
     jira_key: Optional[str] = None
-    for action, observation in result.get("intermediate_steps", []):
-        if getattr(action, "tool", None) == "create_jira_ticket":
-            jira_key = str(observation)
+    for msg in result["messages"]:
+        if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "create_jira_ticket":
+            jira_key = str(msg.content)
             break
 
     return {
         "log_id": log_id,
         "type": "jira",
-        "analysis": result.get("output", ""),
+        "analysis": output,
         "jira_key": jira_key,
     }

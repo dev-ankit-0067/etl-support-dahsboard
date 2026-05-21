@@ -64,8 +64,8 @@ class Settings(BaseSettings):
     # ---- HuggingFace (LLM agents) ----
     huggingface_api_token: Optional[str] = None
     huggingface_model: str = Field(
-        default="mistralai/Mistral-7B-Instruct-v0.3",
-        description="HuggingFace model repo ID used by the LangChain agents.",
+        default="Qwen/Qwen2.5-72B-Instruct",
+        description="HuggingFace model repo ID used by the agents (must support chat completions).",
     )
 
     # ---- Jira Integration ----
