@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     jira_project_key: str = Field(default="SCRUM", description="Jira project key for incident board")
     use_jira_incidents: bool = Field(default=True, description="Use Jira as incident source instead of SSM for incidents and RCA")
     jira_issue_type: str = Field(default="Bug", description="Jira issue type to track as incidents")
+    huggingface_api_token: Optional[str] = None
+    huggingface_model_name: str = Field(
+        default="meta-llama/Llama-3.1-8B-Instruct",
+        description="Hugging Face inference model used for log analysis.",
+    )
     jira_status_mapping: dict = Field(
         default_factory=lambda: {"To Do": "Open", "In Progress": "Investigating", "In Review": "Mitigating", "Done": "Resolved"},
         description="Map Jira status to incident status"
