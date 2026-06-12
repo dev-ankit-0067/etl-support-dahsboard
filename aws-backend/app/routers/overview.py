@@ -12,6 +12,7 @@ from ..models.overview import (
     JobStatusPoint,
     OverviewKpis,
 )
+from ..models.pipelines import LiveStatus
 from ..services import glue_service
 
 try:
@@ -33,7 +34,6 @@ def kpis() -> OverviewKpis:
     except Exception as exc:
         log.error("Glue service failed: %s", exc)
         # Return empty data if Glue fails
-        from ..models.overview import LiveStatus
         jobs = []
         live = LiveStatus(success=0, failed=0, timedOut=0, delayed=0, waitingUpstream=0)
         failed_recent = []
