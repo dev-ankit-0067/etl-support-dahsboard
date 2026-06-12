@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     )
     sla_breach_minutes: int = 60
 
+    # ---- HuggingFace (LLM agents) ----
+    huggingface_api_token: Optional[str] = None
+    huggingface_model: str = Field(
+        default="Qwen/Qwen2.5-72B-Instruct",
+        description="HuggingFace model repo ID used by the agents (must support chat completions).",
+    )
+
     # ---- Jira Integration ----
     jira_url: Optional[str] = None
     jira_username: Optional[str] = None

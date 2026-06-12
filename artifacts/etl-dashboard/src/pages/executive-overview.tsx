@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import CloudWatchLogViewer from "@/components/CloudWatchLogViewer";
+import LogAnalysisModal from "@/components/LogAnalysisModal";
 import {
   CheckCircle2,
   XCircle,
@@ -34,6 +35,8 @@ import {
   AlertCircle,
   Cpu,
   FileText,
+  Sparkles,
+  TicketPlus,
 } from "lucide-react";
 
 interface JobRun {
@@ -154,14 +157,11 @@ function filterRunsByDateRange<T extends { startTime: string }>(
 interface JobHistorySubsectionProps {
   jobName: string;
   onAnalyzeLogs: (runId: string) => void;
+  onGetRca: (runId: string) => void;
+  onLogJiraTicket: (runId: string) => void;
 }
 
-interface JobHistorySubsectionProps {
-  jobName: string;
-  onAnalyzeLogs: (runId: string) => void;
-}
-
-function JobHistorySubsection({ jobName, onAnalyzeLogs }: JobHistorySubsectionProps) {
+function JobHistorySubsection({ jobName, onAnalyzeLogs, onGetRca, onLogJiraTicket }: JobHistorySubsectionProps) {
   const { data, isLoading } = useQuery<RunHistoryItem[]>({
     queryKey: ["pipeline-history", jobName],
     queryFn: async () => {
@@ -237,7 +237,7 @@ function JobHistorySubsection({ jobName, onAnalyzeLogs }: JobHistorySubsectionPr
               Error
             </TableHead>
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500 text-center">
-              Logs
+              Actions
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -278,15 +278,35 @@ function JobHistorySubsection({ jobName, onAnalyzeLogs }: JobHistorySubsectionPr
                 )}
               </TableCell>
               <TableCell className="text-center">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  onClick={() => onAnalyzeLogs(r.id)}
-                >
-                  <FileText className="h-3 w-3 mr-1" />
-                  Analyze
-                </Button>
+                <div className="flex items-center justify-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-1.5"
+                    onClick={() => onAnalyzeLogs(r.id)}
+                  >
+                    <FileText className="h-3 w-3 mr-1" />
+                    Logs
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                    onClick={() => onGetRca(r.id)}
+                  >
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Get RCA
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
+                    onClick={() => onLogJiraTicket(r.id)}
+                  >
+                    <TicketPlus className="h-3 w-3 mr-1" />
+                    Log Jira
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -309,14 +329,11 @@ interface LambdaHistoryItem {
 interface LambdaHistorySubsectionProps {
   functionName: string;
   onAnalyzeLogs: (invocationId: string) => void;
+  onGetRca: (invocationId: string) => void;
+  onLogJiraTicket: (invocationId: string) => void;
 }
 
-interface LambdaHistorySubsectionProps {
-  functionName: string;
-  onAnalyzeLogs: (invocationId: string) => void;
-}
-
-function LambdaHistorySubsection({ functionName, onAnalyzeLogs }: LambdaHistorySubsectionProps) {
+function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJiraTicket }: LambdaHistorySubsectionProps) {
   const { data, isLoading } = useQuery<LambdaHistoryItem[]>({
     queryKey: ["lambda-history", functionName],
     queryFn: async () => {
@@ -395,7 +412,7 @@ function LambdaHistorySubsection({ functionName, onAnalyzeLogs }: LambdaHistoryS
               Error
             </TableHead>
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500 text-center">
-              Logs
+              Actions
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -442,15 +459,35 @@ function LambdaHistorySubsection({ functionName, onAnalyzeLogs }: LambdaHistoryS
                 )}
               </TableCell>
               <TableCell className="text-center">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  onClick={() => onAnalyzeLogs(r.id)}
-                >
-                  <FileText className="h-3 w-3 mr-1" />
-                  Analyze
-                </Button>
+                <div className="flex items-center justify-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-1.5"
+                    onClick={() => onAnalyzeLogs(r.id)}
+                  >
+                    <FileText className="h-3 w-3 mr-1" />
+                    Logs
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                    onClick={() => onGetRca(r.id)}
+                  >
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Get RCA
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
+                    onClick={() => onLogJiraTicket(r.id)}
+                  >
+                    <TicketPlus className="h-3 w-3 mr-1" />
+                    Log Jira
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -471,6 +508,40 @@ export default function ExecutiveOverview() {
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedJobName, setSelectedJobName] = useState<string | null>(null);
+
+  // Log Analysis modal state
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisMode, setAnalysisMode] = useState<"log" | "jira">("log");
+  const [analysisLogId, setAnalysisLogId] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<{
+    log_id: string; type: string; analysis: string; jira_key?: string | null;
+  } | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  const callAgentsApi = async (logId: string, mode: "log" | "jira") => {
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+    setAnalysisMode(mode);
+    setAnalysisLogId(logId);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setAnalysisLoading(true);
+    setAnalysisOpen(true);
+    try {
+      const res = await fetch(`${base}/api/agents/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ log_id: logId, type: mode }),
+      });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json();
+      setAnalysisResult(data);
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   // Reset expansion when switching account
   useEffect(() => {
@@ -869,22 +940,26 @@ export default function ExecutiveOverview() {
                         <TableRow className="hover:bg-transparent">
                           <TableCell colSpan={7} className="p-0">
                             {isLambda ? (
-                              <LambdaHistorySubsection 
+                              <LambdaHistorySubsection
                                 functionName={row.name}
                                 onAnalyzeLogs={(invocationId) => {
                                   setSelectedJobId(invocationId);
                                   setSelectedJobName(row.name);
                                   setLogsModalOpen(true);
                                 }}
+                                onGetRca={(invocationId) => callAgentsApi(invocationId, "log")}
+                                onLogJiraTicket={(invocationId) => callAgentsApi(invocationId, "jira")}
                               />
                             ) : (
-                              <JobHistorySubsection 
+                              <JobHistorySubsection
                                 jobName={row.name}
                                 onAnalyzeLogs={(runId) => {
                                   setSelectedJobId(runId);
                                   setSelectedJobName(row.name);
                                   setLogsModalOpen(true);
                                 }}
+                                onGetRca={(runId) => callAgentsApi(runId, "log")}
+                                onLogJiraTicket={(runId) => callAgentsApi(runId, "jira")}
                               />
                             )}
                           </TableCell>
@@ -910,6 +985,22 @@ export default function ExecutiveOverview() {
           setSelectedJobId(null);
           setSelectedJobName(null);
         }}
+      />
+
+      {/* Log Analysis Modal (RCA / Jira) */}
+      <LogAnalysisModal
+        open={analysisOpen}
+        onClose={() => {
+          setAnalysisOpen(false);
+          setAnalysisLogId(null);
+          setAnalysisResult(null);
+          setAnalysisError(null);
+        }}
+        logId={analysisLogId}
+        mode={analysisMode}
+        isLoading={analysisLoading}
+        result={analysisResult}
+        error={analysisError}
       />
     </div>
   );
