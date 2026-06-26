@@ -1,7 +1,6 @@
 import { Fragment, useState } from "react";
 import { useAccount } from "@/contexts/AccountContext";
 import {
-  useGetIncidentSummary,
   useGetActiveIncidents,
   useGetRepeatIncidents,
 } from "@workspace/api-client-react";
@@ -72,6 +71,17 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
   });
+}
+
+function formatAgeInDays(age: string) {
+  const hoursMatch = age.match(/(\d+(?:\.\d+)?)\s*h/i);
+  if (hoursMatch) {
+    const hours = Number.parseFloat(hoursMatch[1]);
+    const days = Math.floor(hours / 24);
+    return `${days} days`;
+  }
+
+  return age;
 }
 
 function statusBadge(status: string) {
@@ -235,57 +245,58 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
 }
 
 export default function Incidents() {
-  const { data: summary } = useGetIncidentSummary();
   const { data: incidents } = useGetActiveIncidents();
   const { account } = useAccount();
   const accountScale = account.scale;
-  const [dateRange, setDateRange] = useState("today");
+  const [dateRange, setDateRange] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  if (!summary) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
+  // Filter incidents client-side based on the selected date range
+  const filteredIncidents = (incidents as Incident[] | undefined) ? (incidents as Incident[]).filter((inc) => {
+    if (!inc || !inc.createdAt) return false;
+    const created = new Date(inc.createdAt).getTime();
+    const now = Date.now();
 
-  const mult = (dateRange === "30d" ? 30 : dateRange === "7d" ? 7 : 1) * accountScale;
-  const scaled = {
-    p1: Math.max(0, Math.round(summary.openByP1 * mult * 0.8)),
-    p2: Math.max(0, Math.round(summary.openByP2 * mult * 0.9)),
-    p3: Math.max(0, Math.round(summary.openByP3 * mult)),
-    p4: Math.max(0, Math.round(summary.openByP4 * mult)),
-  };
+    if (dateRange === "all") {
+      return true;
+    }
+
+    if (dateRange === "today") {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      return created >= startOfDay.getTime();
+    }
+
+    if (dateRange === "7d") {
+      return created >= (now - 7 * 24 * 60 * 60 * 1000);
+    }
+
+    if (dateRange === "30d") {
+      return created >= (now - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    return true;
+  }) : undefined;
+
+  if (!incidents) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
+
+  const sourceIncidents = filteredIncidents ?? (incidents as Incident[]);
+  const activeIncidentRows: Incident[] = sourceIncidents.filter((inc) => inc.status !== "Resolved");
+  const priorityCounts = activeIncidentRows.reduce<Record<string, number>>((acc, inc) => {
+    acc[inc.severity] = (acc[inc.severity] || 0) + 1;
+    return acc;
+  }, {});
 
   const priorityData = [
-    { name: "P1", count: scaled.p1, fill: "#ef4444" },
-    { name: "P2", count: scaled.p2, fill: "#f59e0b" },
-    { name: "P3", count: scaled.p3, fill: "#3b82f6" },
-    { name: "P4", count: scaled.p4, fill: "#94a3b8" },
+    { name: "P1", count: priorityCounts.P1 || 0, fill: "#ef4444" },
+    { name: "P2", count: priorityCounts.P2 || 0, fill: "#f59e0b" },
+    { name: "P3", count: priorityCounts.P3 || 0, fill: "#3b82f6" },
+    { name: "P4", count: priorityCounts.P4 || 0, fill: "#94a3b8" },
   ];
 
-  // Closed incidents to give us Resolved entries in the list/charts
-  const closedIncidents: Incident[] = [
-    {
-      id: "INC-1034", title: "Sales order ingest schema drift",
-      severity: "P2", status: "Resolved", pipeline: "sales_order_ingest",
-      createdAt: "2026-04-12T05:10:00Z", owner: "Tom Hardy",
-      acknowledged: true, escalationLevel: 1, age: "Closed",
-    },
-    {
-      id: "INC-1033", title: "Treasury rates timeout after TLS upgrade",
-      severity: "P1", status: "Resolved", pipeline: "fin_treasury_rates",
-      createdAt: "2026-04-07T07:00:00Z", owner: "Sarah Chen",
-      acknowledged: true, escalationLevel: 2, age: "Closed",
-    },
-    {
-      id: "INC-1032", title: "Inventory backfill OOM hotfix verified",
-      severity: "P1", status: "Resolved", pipeline: "ops_inventory_load",
-      createdAt: "2026-04-06T06:15:00Z", owner: "Priya Patel",
-      acknowledged: true, escalationLevel: 1, age: "Closed",
-    },
-  ];
-
-  const activeRows: Incident[] = (incidents as Incident[] | undefined)?.filter((inc) => inc.status !== "Resolved") ?? [];
-  const allRows: Incident[] = [...activeRows, ...closedIncidents];
-  // Slice incidents proportional to selected account
-  const rowKeep = account.id === "all" ? allRows.length : Math.max(1, Math.ceil(allRows.length * accountScale));
-  const incidentRows: Incident[] = allRows.slice(0, rowKeep);
+  // Slice incidents proportional to selected account using only fetched data.
+  const rowKeep = account.id === "all" ? activeIncidentRows.length : Math.max(1, Math.ceil(activeIncidentRows.length * accountScale));
+  const incidentRows: Incident[] = activeIncidentRows.slice(0, rowKeep);
 
   // Status pie data — count incidents grouped by status
   const statusCounts = incidentRows.reduce<Record<string, number>>((acc, inc) => {
@@ -311,6 +322,7 @@ export default function Incidents() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">All Time</SelectItem>
             <SelectItem value="today">Today</SelectItem>
             <SelectItem value="7d">Last 7 Days</SelectItem>
             <SelectItem value="30d">Last 30 Days</SelectItem>
@@ -453,7 +465,7 @@ export default function Incidents() {
                       <TableCell className="text-xs py-2">
                         <span className="flex items-center gap-1 text-slate-600">
                           <Clock className="h-3 w-3 text-muted-foreground" />
-                          {inc.age}
+                          {formatAgeInDays(inc.age)}
                         </span>
                       </TableCell>
                       <TableCell className="text-xs py-2">
