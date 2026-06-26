@@ -82,7 +82,7 @@ BACKEND_PID=$!
 printf '%s\n' "$BACKEND_PID" >> "$PID_FILE"
 
 cd "$ROOT_DIR"
-pnpm --dir artifacts/etl-dashboard run serve:nginx >"$FRONTEND_LOG" 2>&1 &
+pnpm --dir artifacts/etl-dashboard run serve >"$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 printf '%s\n' "$FRONTEND_PID" >> "$PID_FILE"
 
