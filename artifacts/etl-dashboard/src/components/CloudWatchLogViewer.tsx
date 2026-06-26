@@ -14,7 +14,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface LogEvent {
   timestamp: string;
@@ -30,6 +31,13 @@ interface CloudWatchLogsResponse {
   eventCount: number;
   timestamp: string;
   error?: string;
+}
+
+interface LogAnalysisResponse {
+  summary: string;
+  rca?: string;
+  insights?: string;
+  model?: string;
 }
 
 interface Props {
@@ -48,6 +56,18 @@ export default function CloudWatchLogViewer({
   onClose,
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [jiraResult, setJiraResult] = useState<{ issueKey: string; issueUrl?: string } | null>(null);
+  const [actionLoading, setActionLoading] = useState<"analysis" | "jira" | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (open) {
+      setAnalysisResult(null);
+      setJiraResult(null);
+      setActionLoading(null);
+    }
+  }, [open]);
 
   const { data: logsData, isLoading, error } = useQuery<CloudWatchLogsResponse>({
     queryKey: ["cloudwatch-logs", resourceType, jobId],
@@ -61,7 +81,7 @@ export default function CloudWatchLogViewer({
       if (!res.ok) throw new Error("Failed to load logs");
       return res.json();
     },
-    enabled: open && !!jobId,
+    enabled: open && !!(resourceType === "lambda" ? jobName : jobId),
     refetchInterval: 5000, // Refresh every 5 seconds
   });
 
@@ -85,6 +105,78 @@ export default function CloudWatchLogViewer({
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  const handleRcaAnalysis = async () => {
+    if (logs.length === 0) return;
+    setActionLoading("analysis");
+    setAnalysisResult(null);
+    try {
+      const logText = logs.map((e) => `[${e.timestamp}] ${e.message}`).join("\n");
+      const response = await fetch("/api/agent/analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, jobName, resourceType, logText }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.detail || "Failed to analyze logs.");
+      }
+      const result = (await response.json()) as LogAnalysisResponse;
+      setAnalysisResult(result.rca ?? result.summary);
+      toast({
+        title: "RCA analysis complete",
+        description: "CloudWatch logs were analyzed successfully.",
+      });
+    } catch (err) {
+      toast({
+        title: "RCA analysis failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCreateJiraTicket = async () => {
+    if (logs.length === 0) return;
+    setActionLoading("jira");
+    setJiraResult(null);
+    try {
+      const ticketText = logs.slice(-100).map((e) => `[${e.timestamp}] ${e.message}`).join("\n");
+      const description = `CloudWatch ${resourceType === "lambda" ? "Lambda" : "Glue Job"} log ticket for ${jobName ?? jobId ?? "unknown"}\n\n${ticketText}`;
+      const response = await fetch("/api/agent/jira", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summary: null,
+          description,
+          rca: analysisResult,
+          jobId,
+          jobName,
+          resourceType,
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.detail || "Failed to create Jira ticket.");
+      }
+      const result = await response.json();
+      setJiraResult({ issueKey: result.issueKey, issueUrl: result.issueUrl });
+      toast({
+        title: "Jira ticket created",
+        description: result.issueKey,
+      });
+    } catch (err) {
+      toast({
+        title: "Jira ticket failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
@@ -112,6 +204,24 @@ export default function CloudWatchLogViewer({
               </span>
             </div>
             <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRcaAnalysis}
+                disabled={logs.length === 0 || actionLoading !== null}
+                className="h-8 text-xs"
+              >
+                RCA Analysis
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCreateJiraTicket}
+                disabled={logs.length === 0 || actionLoading !== null}
+                className="h-8 text-xs"
+              >
+                Log Jira ticket
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -155,16 +265,40 @@ export default function CloudWatchLogViewer({
               </p>
             </div>
           ) : (
-            <ScrollArea className="flex-1 border rounded-lg bg-slate-950 text-slate-100 font-mono text-xs p-3">
-              <div className="space-y-1 pr-4">
-                {logs.map((log, idx) => (
-                  <div key={idx} className="text-slate-300 hover:bg-slate-900 px-2 rounded transition-colors">
-                    <span className="text-slate-500">[{log.timestamp}]</span>
-                    <span className="ml-2">{log.message}</span>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
+            <>
+              <ScrollArea className="flex-1 border rounded-lg bg-slate-950 text-slate-100 font-mono text-xs p-3">
+                <div className="space-y-1 pr-4">
+                  {logs.map((log, idx) => (
+                    <div key={idx} className="text-slate-300 hover:bg-slate-900 px-2 rounded transition-colors">
+                      <span className="text-slate-500">[{log.timestamp}]</span>
+                      <span className="ml-2">{log.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              {(analysisResult || jiraResult) && (
+                <div className="space-y-3 rounded-lg border border-slate-700 bg-slate-900 p-4 text-sm text-slate-100">
+                  {analysisResult && (
+                    <div>
+                      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-slate-400">RCA analysis</p>
+                      <pre className="whitespace-pre-wrap text-sm leading-6">{analysisResult}</pre>
+                    </div>
+                  )}
+                  {jiraResult && (
+                    <div className="rounded-md border border-slate-700 bg-slate-950 p-3">
+                      <p className="mb-1 text-xs uppercase tracking-[0.2em] text-slate-400">Jira ticket</p>
+                      <p className="text-sm">Issue key: <span className="font-medium">{jiraResult.issueKey}</span></p>
+                      {jiraResult.issueUrl && (
+                        <p className="text-sm text-sky-300">
+                          <a href={jiraResult.issueUrl} target="_blank" rel="noreferrer">View ticket</a>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 
