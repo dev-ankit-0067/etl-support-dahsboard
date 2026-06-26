@@ -205,4 +205,5 @@ def service_trend() -> ServiceTrend:
         ranges_7d=build_range(7),
         ranges_30d=build_range(30),
         ranges_60d=build_range(60),
+        ranges_90d=build_range(90),
     )

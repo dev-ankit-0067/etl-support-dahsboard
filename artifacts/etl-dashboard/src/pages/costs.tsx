@@ -17,10 +17,22 @@ import {
 } from "lucide-react";
 
 type ServiceKey = "all" | "glue" | "lambda";
-type RangeKey = "7d" | "30d" | "60d";
+type RangeKey = "7d" | "30d" | "60d" | "90d";
 interface TrendPoint { date: string; cost: number }
-interface ServiceTrendRange { glue: TrendPoint[]; lambda: TrendPoint[]; all: TrendPoint[] }
-type ServiceTrendData = Record<RangeKey, ServiceTrendRange>;
+interface ServiceTrendRange { glue: TrendPoint[]; lambda_: TrendPoint[]; all: TrendPoint[] }
+interface ServiceTrendData {
+  ranges_7d: ServiceTrendRange;
+  ranges_30d: ServiceTrendRange;
+  ranges_60d: ServiceTrendRange;
+  ranges_90d?: ServiceTrendRange;
+}
+
+const RANGE_KEYS: Record<RangeKey, keyof ServiceTrendData> = {
+  "7d": "ranges_7d",
+  "30d": "ranges_30d",
+  "60d": "ranges_60d",
+  "90d": "ranges_90d",
+};
 
 export default function Costs() {
   const { data: kpis } = useGetCostKpis();
@@ -40,14 +52,15 @@ export default function Costs() {
 
   const chartData = useMemo(() => {
     if (!serviceTrend) return [];
-    const r = serviceTrend[range];
+    const rangeKey = RANGE_KEYS[range];
+    const r = serviceTrend[rangeKey];
     if (!r) return [];
     // Combine into a single array keyed by date so multiple lines can share an axis,
     // scaling each series by the selected AWS account's portion of total spend.
     return r.glue.map((g, i) => ({
       date: g.date,
       glue: Math.round(g.cost * accountScale * 100) / 100,
-      lambda: Math.round((r.lambda[i]?.cost ?? 0) * accountScale * 100) / 100,
+      lambda: Math.round((r.lambda_[i]?.cost ?? 0) * accountScale * 100) / 100,
       all: Math.round((r.all[i]?.cost ?? 0) * accountScale * 100) / 100,
     }));
   }, [serviceTrend, range, accountScale]);
@@ -299,6 +312,7 @@ export default function Costs() {
                   <SelectItem value="7d">Last 7 Days</SelectItem>
                   <SelectItem value="30d">Last 30 Days</SelectItem>
                   <SelectItem value="60d">Last 60 Days</SelectItem>
+                  <SelectItem value="90d">Last 90 Days</SelectItem>
                 </SelectContent>
               </Select>
             </div>
