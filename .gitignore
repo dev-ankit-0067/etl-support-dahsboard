@@ -50,6 +50,11 @@ Thumbs.db
 
 __pycache__/
 .ipynb_checkpoints/
-.env
+.env*
 .venv
 .ipynb
+sonar-result.json
+.scannerwork/
+checkov_results/
+pnpm-lock.yaml
+pnpm-workspace.yaml

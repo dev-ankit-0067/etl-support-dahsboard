@@ -28,6 +28,8 @@ import {
   Circle,
   FileSearch,
   Lightbulb,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 interface Incident {
@@ -250,6 +252,8 @@ export default function Incidents() {
   const accountScale = account.scale;
   const [dateRange, setDateRange] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [chartsOpen, setChartsOpen] = useState(true);
+  const [tableOpen, setTableOpen] = useState(false);
 
   // Filter incidents client-side based on the selected date range
   const filteredIncidents = (incidents as Incident[] | undefined) ? (incidents as Incident[]).filter((inc) => {
@@ -310,7 +314,7 @@ export default function Incidents() {
   const totalIncidents = statusData.reduce((s, d) => s + d.value, 0);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)] gap-3">
+    <div className="flex flex-col gap-4 pb-6">
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
@@ -330,14 +334,28 @@ export default function Incidents() {
         </Select>
       </div>
 
-      {/* Charts row - frozen */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
+      {/* Charts section */}
+      <Card>
+        <CardHeader
+          className="pb-2 pt-3 cursor-pointer select-none"
+          onClick={() => setChartsOpen((o) => !o)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium">Incident Overview</CardTitle>
+            <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-slate-700">
+              {chartsOpen ? <><ChevronUp className="h-3.5 w-3.5" /> Collapse</> : <><ChevronDown className="h-3.5 w-3.5" /> Expand</>}
+            </button>
+          </div>
+        </CardHeader>
+        {chartsOpen && (
+          <CardContent className="pt-0 pb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Card>
           <CardHeader className="pb-1 pt-3">
             <CardTitle className="text-sm font-medium">Incidents by Status</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 pb-3">
-            <div className="grid grid-cols-[1fr_auto] items-center gap-3" style={{ height: 200 }}>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3" style={{ height: 160 }}>
               <div className="relative h-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
@@ -347,8 +365,8 @@ export default function Incidents() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={85}
+                      innerRadius={30}
+                      outerRadius={52}
                       paddingAngle={2}
                       stroke="#fff"
                       strokeWidth={2}
@@ -384,7 +402,7 @@ export default function Incidents() {
             <CardTitle className="text-sm font-medium">Open Incidents by Priority</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 pb-3">
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={160}>
               <BarChart data={priorityData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
@@ -398,27 +416,34 @@ export default function Incidents() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
-      {/* Active Incidents table - sliding window with sticky header */}
-      <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <CardHeader className="pb-2 pt-3 shrink-0">
+      {/* Active Incidents table */}
+      <Card className="flex flex-col overflow-hidden">
+        <CardHeader
+          className="pb-2 pt-3 cursor-pointer select-none"
+          onClick={() => setTableOpen((o) => !o)}
+        >
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium">Active Incidents</CardTitle>
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Open
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Investigating
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Resolved
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Open</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Investigating</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Resolved</span>
+              </div>
+              <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-slate-700">
+                {tableOpen ? <><ChevronUp className="h-3.5 w-3.5" /> Collapse</> : <><ChevronDown className="h-3.5 w-3.5" /> Expand</>}
+              </button>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0 flex-1 min-h-0 overflow-auto">
+        {tableOpen && (
+        <CardContent className="p-0">
+          <div className="overflow-y-auto" style={{ maxHeight: chartsOpen ? "calc(6 * 41px + 36px)" : "calc(12 * 41px + 36px)" }}>
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_rgb(226_232_240)]">
               <TableRow>
@@ -453,7 +478,7 @@ export default function Incidents() {
                       </TableCell>
                       <TableCell className="text-xs font-mono text-primary py-2">{inc.id}</TableCell>
                       <TableCell className="py-2">
-                        <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700 max-w-[280px]">
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700 max-w-[380px]">
                           {inc.severity === "P1" && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />}
                           {inc.status === "Resolved" && <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />}
                           <span className="truncate" title={inc.title}>{inc.title}</span>
@@ -487,7 +512,9 @@ export default function Incidents() {
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
+        )}
       </Card>
     </div>
   );

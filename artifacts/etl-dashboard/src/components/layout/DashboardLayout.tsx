@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   ShieldCheck,
@@ -9,6 +10,8 @@ import {
   LayoutDashboard,
   DollarSign,
   FolderKanban,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +27,7 @@ import { useAccount } from "@/contexts/AccountContext";
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { account, accounts, setAccountId } = useAccount();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const navItems = [
     { name: "Executive Overview", path: "/", icon: LayoutDashboard },
@@ -34,12 +38,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen w-full bg-slate-50/50">
       {/* Sidebar */}
-      <div className="hidden md:flex w-64 flex-col border-r bg-white">
-        <div className="flex h-14 items-center border-b px-4">
-          <div className="flex items-center gap-2 font-semibold text-primary">
-            <ShieldCheck className="h-5 w-5" />
-            <span>OpsGuardian</span>
-          </div>
+      <div className={`hidden md:flex flex-col border-r bg-white transition-all duration-200 ${sidebarOpen ? "w-64" : "w-14"}`}>
+        <div className="flex h-14 items-center border-b px-3">
+          {sidebarOpen && (
+            <div className="flex items-center gap-2 font-semibold text-primary">
+              <ShieldCheck className="h-5 w-5 shrink-0" />
+              <span>OpsGuardian</span>
+            </div>
+          )}
+          {!sidebarOpen && <ShieldCheck className="h-5 w-5 text-primary" />}
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((o) => !o)}
+            className="ml-auto flex items-center justify-center h-6 w-6 rounded hover:bg-slate-100 text-slate-500 shrink-0"
+          >
+            {sidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
         </div>
         <div className="flex-1 overflow-auto py-4">
           <nav className="grid gap-1 px-2">
@@ -53,9 +67,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                         ? "bg-primary/10 text-primary"
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                     }`}
+                    title={!sidebarOpen ? item.name : undefined}
                   >
-                    <item.icon className="h-4 w-4" />
-                    {item.name}
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    {sidebarOpen && <span>{item.name}</span>}
                   </div>
                 </Link>
               );
