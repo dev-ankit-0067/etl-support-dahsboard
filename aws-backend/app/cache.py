@@ -25,7 +25,8 @@ def cached(bucket: str = "medium") -> Callable:
 
         @wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            key = (fn.__qualname__, args, tuple(sorted(kwargs.items())))
+            # include module to avoid collisions between functions with the same name
+            key = (fn.__module__, fn.__qualname__, args, tuple(sorted(kwargs.items())))
             with _LOCK:
                 if key in store:
                     return store[key]

@@ -56,5 +56,18 @@
       ],
       "Resource": "*"
     }
+    ,
+    {
+      "Sid": "EMRRead",
+      "Effect": "Allow",
+      "Action": [
+        "elasticmapreduce:ListClusters",
+        "elasticmapreduce:DescribeCluster",
+        "elasticmapreduce:ListSteps",
+        "elasticmapreduce:ListInstanceGroups",
+        "elasticmapreduce:ListInstances"
+      ],
+      "Resource": "*"
+    }
   ]
 }

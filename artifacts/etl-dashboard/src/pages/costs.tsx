@@ -16,10 +16,10 @@ import {
   TrendingDown,
 } from "lucide-react";
 
-type ServiceKey = "all" | "glue" | "lambda";
+type ServiceKey = "all" | "glue" | "lambda" | "emr";
 type RangeKey = "7d" | "30d" | "60d" | "90d";
 interface TrendPoint { date: string; cost: number }
-interface ServiceTrendRange { glue: TrendPoint[]; lambda_: TrendPoint[]; all: TrendPoint[] }
+interface ServiceTrendRange { glue: TrendPoint[]; lambda_: TrendPoint[]; emr: TrendPoint[]; all: TrendPoint[] }
 interface ServiceTrendData {
   ranges_7d: ServiceTrendRange;
   ranges_30d: ServiceTrendRange;
@@ -61,6 +61,7 @@ export default function Costs() {
       date: g.date,
       glue: Math.round(g.cost * accountScale * 100) / 100,
       lambda: Math.round((r.lambda_[i]?.cost ?? 0) * accountScale * 100) / 100,
+      emr: Math.round((r.emr[i]?.cost ?? 0) * accountScale * 100) / 100,
       all: Math.round((r.all[i]?.cost ?? 0) * accountScale * 100) / 100,
     }));
   }, [serviceTrend, range, accountScale]);
@@ -302,6 +303,7 @@ export default function Costs() {
                   <SelectItem value="all">All Services</SelectItem>
                   <SelectItem value="glue">Glue</SelectItem>
                   <SelectItem value="lambda">Lambda</SelectItem>
+                  <SelectItem value="emr">EMR</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={range} onValueChange={(v) => setRange(v as RangeKey)}>
@@ -367,6 +369,17 @@ export default function Costs() {
                     dot={false}
                     activeDot={{ r: 5 }}
                     name="Total"
+                  />
+                )}
+                {(service === "all" || service === "emr") && (
+                  <Line
+                    type="monotone"
+                    dataKey="emr"
+                    stroke="#f97316"
+                    strokeWidth={2.25}
+                    dot={range === "7d" ? { r: 3, fill: "#f97316" } : false}
+                    activeDot={{ r: 5 }}
+                    name="EMR"
                   />
                 )}
               </LineChart>

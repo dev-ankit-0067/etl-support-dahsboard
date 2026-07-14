@@ -261,7 +261,9 @@ export default function IncidentDetailModal({ incident, open, onClose }: Props) 
                   </span>
                 </div>
                 <p className="text-sm text-slate-700 leading-6">
-                  {rcaEntry?.rcaSummary || "A schema mismatch introduced during the latest upstream release caused repeated job failures until the pipeline was rolled back and the source contract was corrected."}
+                  {repeatEntry?.pattern
+                    ? `Repeated incidents suggest ${repeatEntry.pattern.toLowerCase()}.`
+                    : "A schema mismatch introduced during the latest upstream release caused repeated job failures until the pipeline was rolled back and the source contract was corrected."}
                 </p>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="text-center rounded-md border bg-white p-3">

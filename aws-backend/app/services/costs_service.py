@@ -189,17 +189,22 @@ def service_trend() -> ServiceTrend:
     def build_range(days: int) -> ServiceTrendSeries:
         glue = _trend_by_service(days, "AWS Glue")
         lambda_ = _trend_by_service(days, "AWS Lambda")
+        emr = _trend_by_service(days, "Amazon EMR")
         # Combine both services
         combined = []
         for i, g in enumerate(glue):
+            total = g.cost
             if i < len(lambda_):
-                combined.append(
-                    CostTrendPoint(
-                        date=g.date,
-                        cost=round(g.cost + lambda_[i].cost, 2),
-                    )
+                total += lambda_[i].cost
+            if i < len(emr):
+                total += emr[i].cost
+            combined.append(
+                CostTrendPoint(
+                    date=g.date,
+                    cost=round(total, 2),
                 )
-        return ServiceTrendSeries(glue=glue, lambda_=lambda_, all=combined)
+            )
+        return ServiceTrendSeries(glue=glue, lambda_=lambda_, emr=emr, all=combined)
 
     return ServiceTrend(
         ranges_7d=build_range(7),

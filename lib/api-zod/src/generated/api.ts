@@ -316,3 +316,37 @@ export const GetCostOptimizationResponseItem = zod.object({
 export const GetCostOptimizationResponse = zod.array(
   GetCostOptimizationResponseItem,
 );
+
+/**
+ * @summary EMR cluster KPIs
+ */
+export const GetEmrKpisResponse = zod.object({
+  totalClusters: zod.number(),
+  activeClusters: zod.number(),
+  failedClusters: zod.number(),
+});
+
+/**
+ * @summary List EMR clusters
+ */
+export const GetEmrClustersResponseItem = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  state: zod.string(),
+  createdAt: zod.string(),
+});
+export const GetEmrClustersResponse = zod.array(GetEmrClustersResponseItem);
+
+/**
+ * @summary Recent EMR cluster runs
+ */
+export const GetEmrRunsResponseItem = zod.object({
+  id: zod.string(),
+  clusterId: zod.string(),
+  name: zod.string(),
+  status: zod.string(),
+  startTime: zod.string(),
+  endTime: zod.string().nullish(),
+  duration: zod.string().nullish(),
+});
+export const GetEmrRunsResponse = zod.array(GetEmrRunsResponseItem);
