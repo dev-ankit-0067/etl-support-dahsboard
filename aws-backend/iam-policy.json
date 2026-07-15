@@ -56,5 +56,30 @@
       ],
       "Resource": "*"
     }
+    ,
+    {
+      "Sid": "EMRRead",
+      "Effect": "Allow",
+      "Action": [
+        "elasticmapreduce:ListClusters",
+        "elasticmapreduce:DescribeCluster",
+        "elasticmapreduce:ListSteps",
+        "elasticmapreduce:ListInstanceGroups",
+        "elasticmapreduce:ListInstances"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EMRServerlessRead",
+      "Effect": "Allow",
+      "Action": [
+        "emr-serverless:ListApplications",
+        "emr-serverless:GetApplication",
+        "emr-serverless:ListJobRuns",
+        "emr-serverless:GetJobRun",
+        "emr-serverless:ListApplicationVersions"
+      ],
+      "Resource": "*"
+    }
   ]
 }

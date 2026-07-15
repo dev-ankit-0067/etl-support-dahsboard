@@ -186,8 +186,9 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
 
   const daysOpen = rcaEntry?.lastOccurrence ? Math.floor((Date.now() - new Date(rcaEntry.lastOccurrence).getTime()) / (1000 * 60 * 60 * 24)) : 2;
 
-  const rcaSummary = rcaEntry?.rootCause ||
-    (isResolved
+  const rcaSummary = rcaEntry?.pattern
+    ? `Repeated incidents suggest ${rcaEntry.pattern.toLowerCase()}.`
+    : (isResolved
       ? "A schema mismatch introduced during the latest upstream release caused repeated job failures until the pipeline was rolled back and the source contract was corrected."
       : "Investigation in progress. Initial analysis points to an upstream change introducing unexpected payload variance; on-call team is collecting trace data and validating recent deployments.");
 

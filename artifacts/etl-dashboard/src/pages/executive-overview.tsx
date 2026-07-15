@@ -46,7 +46,10 @@ interface JobRun {
   startTime: string;
   endTime: string;
   duration: string;
-  costPerRun: number;
+  owner: string;
+  environment: string;
+  domain: string;
+  costPerRun?: number;
 }
 
 interface LambdaRun {
@@ -57,6 +60,22 @@ interface LambdaRun {
   endTime: string;
   duration: string;
   costPerRun: number;
+}
+
+interface EMRRun {
+  id: string;
+  clusterId: string;
+  name: string;
+  status: string;
+  startTime: string;
+  endTime?: string | null;
+  duration?: string | null;
+}
+
+interface EMRKpis {
+  totalClusters: number;
+  activeClusters: number;
+  failedClusters: number;
 }
 
 interface LambdaKpis {
@@ -497,13 +516,89 @@ function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJ
   );
 }
 
+function EMRHistorySubsection({ clusterId, onAnalyzeLogs, onGetRca, onLogJiraTicket }: { clusterId: string; onAnalyzeLogs: (runId: string) => void; onGetRca: (runId: string) => void; onLogJiraTicket: (runId: string) => void; }) {
+  const [recentRuns, setRecentRuns] = useState<EMRRun[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+    fetch(`${base}/api/emr/runs`)
+      .then((res) => res.json())
+      .then((data: EMRRun[]) => {
+        const filtered = (data || [])
+          .filter((run: EMRRun) => run.clusterId === clusterId)
+          .sort((a: EMRRun, b: EMRRun) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+          .slice(0, 5);
+        setRecentRuns(filtered);
+      })
+      .catch(() => setRecentRuns([]))
+      .finally(() => setLoading(false));
+  }, [clusterId]);
+
+  if (loading) {
+    return (
+      <div className="px-6 py-4 text-xs text-muted-foreground">Loading run history…</div>
+    );
+  }
+
+  const totalCost = 0;
+  const success = recentRuns.filter((run: EMRRun) => run.status === "Success").length;
+  const successRate = recentRuns.length ? Math.round((success / recentRuns.length) * 100) : 0;
+
+  return (
+    <div className="bg-slate-50 border-t border-b">
+      <div className="px-6 py-3 border-b bg-white/60 flex items-center gap-6 text-xs">
+        <span className="font-mono text-slate-700">{clusterId}</span>
+        <span className="text-muted-foreground">Success rate: <span className="font-semibold text-slate-700">{successRate}%</span></span>
+        <span className="text-muted-foreground">Total cost (last 5 steps): <span className="font-semibold text-slate-700">${totalCost.toFixed(2)}</span></span>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-slate-100/60 hover:bg-slate-100/60">
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Step ID</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Status</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Start Time</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Duration</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500 text-right">Cost</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {recentRuns.map((run: EMRRun) => (
+            <TableRow key={run.id} className="hover:bg-white">
+              <TableCell className="text-xs font-mono text-muted-foreground">{run.id}</TableCell>
+              <TableCell>{statusBadge(run.status)}</TableCell>
+              <TableCell className="text-xs text-muted-foreground">{new Date(run.startTime).toLocaleString()}</TableCell>
+              <TableCell className="text-xs"><span className="flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{run.duration || "—"}</span></TableCell>
+              <TableCell className="text-xs text-right font-mono">—</TableCell>
+              <TableCell>
+                <div className="flex items-center justify-center gap-1">
+                  <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5" onClick={() => onAnalyzeLogs(run.id)}>
+                    <FileText className="h-3 w-3 mr-1" />Logs
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => onGetRca(run.id)}>
+                    <Sparkles className="h-3 w-3 mr-1" />Get RCA
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-violet-600 border-violet-200 hover:bg-violet-50" onClick={() => onLogJiraTicket(run.id)}>
+                    <TicketPlus className="h-3 w-3 mr-1" />Log Jira
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 export default function ExecutiveOverview() {
   const { data: kpis } = useGetOverviewKpis();
   const { data: runs } = useGetPipelineRuns();
   const { account } = useAccount();
   const accountScale = account.scale;
   const [dateRange, setDateRange] = useState("today");
-  const [resourceType, setResourceType] = useState<"job" | "lambda">("job");
+  const [resourceType, setResourceType] = useState<"job" | "lambda" | "emr">("job");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -550,6 +645,8 @@ export default function ExecutiveOverview() {
 
   const [lambdaKpis, setLambdaKpis] = useState<LambdaKpis | null>(null);
   const [lambdaRuns, setLambdaRuns] = useState<LambdaRun[]>([]);
+  const [emrKpis, setEmrKpis] = useState<EMRKpis | null>(null);
+  const [emrRuns, setEmrRuns] = useState<EMRRun[]>([]);
 
   useEffect(() => {
     if (resourceType !== "lambda") return;
@@ -568,6 +665,23 @@ export default function ExecutiveOverview() {
       });
   }, [resourceType]);
 
+  useEffect(() => {
+    if (resourceType !== "emr") return;
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+    Promise.all([
+      fetch(`${base}/api/emr/kpis`).then((r) => r.json()).catch(() => null),
+      fetch(`${base}/api/emr/runs`).then((r) => r.json()).catch(() => []),
+    ])
+      .then(([k, r]) => {
+        setEmrKpis(k);
+        setEmrRuns(r || []);
+      })
+      .catch(() => {
+        setEmrKpis(null);
+        setEmrRuns([]);
+      });
+  }, [resourceType]);
+
   // Reset expansion when switching resource types
   useEffect(() => {
     setExpanded(null);
@@ -582,6 +696,7 @@ export default function ExecutiveOverview() {
 
   const mult = (DATE_MULTIPLIERS[dateRange] ?? 1) * accountScale;
   const isLambda = resourceType === "lambda";
+  const isEmr = resourceType === "emr";
 
   const jobRuns: JobRun[] = (
     Array.isArray(runs) ? runs : []
@@ -590,11 +705,14 @@ export default function ExecutiveOverview() {
   // Filter runs by date range
   const filteredJobRuns = filterRunsByDateRange(jobRuns, dateRange);
   const filteredLambdaRuns = filterRunsByDateRange(lambdaRuns, dateRange);
+  const filteredEmrRuns = filterRunsByDateRange(emrRuns, dateRange);
 
   // Calculate counts from unique jobs/functions (after grouping)
   const uniqueResources = isLambda
-    ? new Set(filteredLambdaRuns.map(r => r.functionName)).size
-    : new Set(filteredJobRuns.map(r => r.pipelineName)).size;
+    ? new Set(filteredLambdaRuns.map((r) => r.functionName)).size
+    : isEmr
+    ? new Set(filteredEmrRuns.map((r) => r.clusterId)).size
+    : new Set(filteredJobRuns.map((r) => r.pipelineName)).size;
 
   let totalCount: number;
   let healthyCount: number;
@@ -635,15 +753,17 @@ export default function ExecutiveOverview() {
     failedCount = latestRuns.filter((r) => r.status === "Failed" || r.status === "Timed Out").length;
   }
 
-  const totalLabel = isLambda ? "Total Functions" : "Total Jobs";
-  const healthyLabel = isLambda ? "Healthy Functions" : "Healthy Jobs";
-  const failedLabel = isLambda ? "Functions with Errors" : "Failed Jobs";
+  const totalLabel = isLambda ? "Total Functions" : isEmr ? "Total Clusters" : "Total Jobs";
+  const healthyLabel = isLambda ? "Healthy Functions" : isEmr ? "Healthy Clusters" : "Healthy Jobs";
+  const failedLabel = isLambda ? "Functions with Errors" : isEmr ? "Clusters with Errors" : "Failed Jobs";
   const totalSubtitle = isLambda
     ? "Across all Lambda functions"
+    : isEmr
+    ? "Across all EMR clusters"
     : "Across all Glue jobs";
-  const tableTitle = isLambda ? "Active Invocations" : "Active Jobs";
-  const nameHeader = isLambda ? "Function Name" : "Job Name";
-  const costHeader = isLambda ? "Cost/Invocation" : "Cost/Run";
+  const tableTitle = isLambda ? "Active Invocations" : isEmr ? "EMR Steps" : "Active Jobs";
+  const nameHeader = isLambda ? "Function Name" : isEmr ? "Cluster ID" : "Job Name";
+  const costHeader = isLambda ? "Cost/Invocation" : isEmr ? "Cost/Step" : "Cost/Run";
 
   type Row = {
     id: string;
@@ -672,7 +792,7 @@ export default function ExecutiveOverview() {
           startTime: r.startTime,
           endTime: r.endTime,
           duration: r.duration,
-          cost: r.costPerRun,
+          cost: r.costPerRun ?? 0,
           expandable: true,
         }));
       })()
@@ -692,17 +812,37 @@ export default function ExecutiveOverview() {
           startTime: r.startTime,
           endTime: r.endTime,
           duration: r.duration,
-          cost: r.costPerRun,
+          cost: r.costPerRun ?? 0,
           expandable: true,
         }));
       })();
+  // EMR branch: group EMR runs by clusterId and keep latest step per cluster
+  let rowsForDisplay: Row[] = allRows;
+  if (isEmr) {
+    const grouped = filteredEmrRuns.reduce((acc: Record<string, EMRRun>, run: EMRRun) => {
+      const key = run.clusterId;
+      if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
+        acc[key] = run;
+      }
+      return acc;
+    }, {} as Record<string, EMRRun>);
+    rowsForDisplay = Object.values(grouped).map((r: EMRRun) => ({
+      id: r.id,
+      name: r.clusterId,
+      status: r.status,
+      startTime: r.startTime,
+      endTime: r.endTime || "",
+      duration: r.duration || "",
+      cost: 0,
+      expandable: true,
+    }));
+  }
   // Slice rows proportional to selected account so the table reflects the scope
   const rowKeep =
     account.id === "all"
-      ? allRows.length
-      : Math.max(1, Math.ceil(allRows.length * accountScale));
-  const rows: Row[] = allRows.slice(0, rowKeep);
-
+      ? rowsForDisplay.length
+      : Math.max(1, Math.ceil(rowsForDisplay.length * accountScale));
+  const rows: Row[] = rowsForDisplay.slice(0, rowKeep);
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] gap-3">
       {/* Header */}
@@ -714,13 +854,15 @@ export default function ExecutiveOverview() {
           <p className="text-xs text-muted-foreground">
             {isLambda
               ? "Lambda function health and key performance indicators"
+              : isEmr
+              ? "EMR cluster health and key performance indicators"
               : "Job health and key performance indicators"}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Select
             value={resourceType}
-            onValueChange={(v) => setResourceType(v as "job" | "lambda")}
+            onValueChange={(v) => setResourceType(v as "job" | "lambda" | "emr")}
           >
             <SelectTrigger className="h-8 w-[130px] text-xs">
               <SelectValue />
@@ -728,6 +870,7 @@ export default function ExecutiveOverview() {
             <SelectContent>
               <SelectItem value="job">Jobs</SelectItem>
               <SelectItem value="lambda">Lambda</SelectItem>
+              <SelectItem value="emr">EMR</SelectItem>
             </SelectContent>
           </Select>
           <Select value={dateRange} onValueChange={setDateRange}>
@@ -950,6 +1093,17 @@ export default function ExecutiveOverview() {
                                 onGetRca={(invocationId) => callAgentsApi(invocationId, "log")}
                                 onLogJiraTicket={(invocationId) => callAgentsApi(invocationId, "jira")}
                               />
+                            ) : isEmr ? (
+                              <EMRHistorySubsection
+                                clusterId={row.name}
+                                onAnalyzeLogs={(runId) => {
+                                  setSelectedJobId(runId);
+                                  setSelectedJobName(row.name);
+                                  setLogsModalOpen(true);
+                                }}
+                                onGetRca={(runId) => callAgentsApi(runId, "log")}
+                                onLogJiraTicket={(runId) => callAgentsApi(runId, "jira")}
+                              />
                             ) : (
                               <JobHistorySubsection
                                 jobName={row.name}
@@ -978,7 +1132,7 @@ export default function ExecutiveOverview() {
       <CloudWatchLogViewer
         jobId={selectedJobId}
         jobName={selectedJobName}
-        resourceType={resourceType}
+        resourceType={isEmr ? "emr" as "job" | "lambda" : resourceType}
         open={logsModalOpen}
         onClose={() => {
           setLogsModalOpen(false);

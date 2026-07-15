@@ -32,6 +32,7 @@ class CostPerformance(BaseModel):
 class ServiceTrendSeries(BaseModel):
     glue: List[CostTrendPoint]
     lambda_: List[CostTrendPoint]  # Using lambda_ to avoid keyword conflict
+    emr: List[CostTrendPoint]
     all: List[CostTrendPoint]
 
     class Config:
