@@ -13,11 +13,13 @@ class EMRCluster(BaseModel):
 class EMRRun(BaseModel):
     id: str
     clusterId: str
+    clusterName: Optional[str] = None
     name: str
     status: str
     startTime: str
     endTime: Optional[str]
     duration: Optional[str]
+    serviceType: str = "classic"
 
 
 class EMRKpis(BaseModel):

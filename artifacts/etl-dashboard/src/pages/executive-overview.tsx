@@ -65,11 +65,13 @@ interface LambdaRun {
 interface EMRRun {
   id: string;
   clusterId: string;
+  clusterName?: string | null;
   name: string;
   status: string;
   startTime: string;
   endTime?: string | null;
   duration?: string | null;
+  serviceType?: "classic" | "serverless";
 }
 
 interface EMRKpis {
@@ -674,7 +676,15 @@ export default function ExecutiveOverview() {
     ])
       .then(([k, r]) => {
         setEmrKpis(k);
-        setEmrRuns(r || []);
+        setEmrRuns(
+          (r || []).map((run: EMRRun) => ({
+            ...run,
+            name:
+              run.serviceType === "serverless" && run.clusterName
+                ? `${run.clusterName} / ${run.name}`
+                : run.name,
+          })),
+        );
       })
       .catch(() => {
         setEmrKpis(null);
@@ -711,7 +721,9 @@ export default function ExecutiveOverview() {
   const uniqueResources = isLambda
     ? new Set(filteredLambdaRuns.map((r) => r.functionName)).size
     : isEmr
-    ? new Set(filteredEmrRuns.map((r) => r.clusterId)).size
+    ? new Set(filteredEmrRuns.map((r) =>
+        r.serviceType === "serverless" ? `${r.clusterId}:${r.id}` : r.clusterId,
+      )).size
     : new Set(filteredJobRuns.map((r) => r.pipelineName)).size;
 
   let totalCount: number;
@@ -736,6 +748,17 @@ export default function ExecutiveOverview() {
             }
             return acc;
           }, {} as Record<string, LambdaRun>);
+          return Object.values(grouped);
+        })()
+      : isEmr
+      ? (() => {
+          const grouped = filteredEmrRuns.reduce((acc: Record<string, EMRRun>, run: EMRRun) => {
+            const key = run.serviceType === "serverless" ? `${run.clusterId}:${run.id}` : run.clusterId;
+            if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
+              acc[key] = run;
+            }
+            return acc;
+          }, {} as Record<string, EMRRun>);
           return Object.values(grouped);
         })()
       : (() => {
@@ -820,7 +843,7 @@ export default function ExecutiveOverview() {
   let rowsForDisplay: Row[] = allRows;
   if (isEmr) {
     const grouped = filteredEmrRuns.reduce((acc: Record<string, EMRRun>, run: EMRRun) => {
-      const key = run.clusterId;
+      const key = run.serviceType === "serverless" ? `${run.clusterId}:${run.id}` : run.clusterId;
       if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
         acc[key] = run;
       }
@@ -828,7 +851,10 @@ export default function ExecutiveOverview() {
     }, {} as Record<string, EMRRun>);
     rowsForDisplay = Object.values(grouped).map((r: EMRRun) => ({
       id: r.id,
-      name: r.clusterId,
+      name:
+        r.serviceType === "serverless" && r.clusterName
+          ? `${r.clusterName} / ${r.name}`
+          : r.clusterId,
       status: r.status,
       startTime: r.startTime,
       endTime: r.endTime || "",
