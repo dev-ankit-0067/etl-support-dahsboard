@@ -21,6 +21,13 @@ def _get_log_group_for_job(job_id: str) -> str:
     return f"/aws-glue/jobs/output"
 
 
+def _get_log_group_for_emr_serverless(job_run_id: str, app_id: str = "") -> str:
+    """Generate CloudWatch log group name for EMR Serverless job run."""
+    # EMR Serverless logs format: /aws-emr-serverless/applications/{applicationId}/jobs/{jobRunId}
+    # But we can search by job run ID prefix in /aws-emr-serverless/
+    return f"/aws-emr-serverless/applications"
+
+
 def _get_log_group_for_lambda(function_name: str) -> str:
     """Generate CloudWatch log group name for a Lambda function."""
     return f"/aws/lambda/{function_name}"
@@ -179,6 +186,95 @@ def get_lambda_logs(function_name: str, limit: int = 100) -> dict:
         log.error(f"Failed to fetch lambda logs for {function_name}: {exc}")
         return {
             "functionName": function_name,
+            "error": str(exc),
+            "events": [],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+@cached("short")
+def get_emr_serverless_logs(job_run_id: str, app_id: str = "", limit: int = 1000) -> dict:
+    """
+    Fetch CloudWatch logs for an EMR Serverless job run.
+    
+    Args:
+        job_run_id: The EMR Serverless job run ID
+        app_id: The application ID (optional, for filtering)
+        limit: Maximum number of log events to return
+    
+    Returns:
+        Dictionary with log events and metadata
+    """
+    try:
+        logs = client("logs")
+        # EMR Serverless logs are typically in /aws-emr-serverless/
+        # Try to find log streams with the job run ID
+        
+        # Common EMR log group patterns
+        log_groups = [
+            "/aws-emr-serverless/applications",
+            "/aws-emr-serverless/",
+            f"/aws-emr-serverless/applications/{app_id}" if app_id else None,
+        ]
+        
+        all_events = []
+        found_group = None
+        
+        for log_group in log_groups:
+            if not log_group:
+                continue
+            try:
+                # Try to get log streams for this job
+                streams = logs.describe_log_streams(
+                    logGroupName=log_group,
+                    logStreamNamePrefix=job_run_id,  # Filter by job run ID
+                    limit=10
+                ).get("logStreams", [])
+                
+                if streams:
+                    found_group = log_group
+                    for stream in streams:
+                        try:
+                            response = logs.get_log_events(
+                                logGroupName=log_group,
+                                logStreamName=stream["logStreamName"],
+                                limit=limit // max(1, len(streams)) + 20,
+                                startFromHead=False,
+                            )
+                            
+                            for event in response.get("events", []):
+                                all_events.append({
+                                    "timestamp": datetime.fromtimestamp(
+                                        event["timestamp"] / 1000, tz=timezone.utc
+                                    ).isoformat(),
+                                    "message": event["message"],
+                                    "stream": stream["logStreamName"],
+                                })
+                        except (BotoCoreError, ClientError) as e:
+                            log.warning(f"Failed to fetch logs from stream {stream['logStreamName']}: {e}")
+                            continue
+                    break  # Found logs, no need to try other groups
+            except (BotoCoreError, ClientError):
+                continue
+        
+        # Sort by timestamp descending (most recent first) and limit
+        all_events.sort(key=lambda x: x["timestamp"], reverse=True)
+        all_events = all_events[:limit]
+        
+        return {
+            "jobRunId": job_run_id,
+            "applicationId": app_id,
+            "logGroup": found_group or "/aws-emr-serverless/applications",
+            "events": all_events,
+            "eventCount": len(all_events),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    
+    except (BotoCoreError, ClientError) as exc:
+        log.error(f"Failed to fetch EMR logs for {job_run_id}: {exc}")
+        return {
+            "jobRunId": job_run_id,
+            "applicationId": app_id,
             "error": str(exc),
             "events": [],
             "timestamp": datetime.now(timezone.utc).isoformat(),

@@ -861,6 +861,7 @@ export default function ExecutiveOverview() {
       duration: r.duration || "",
       cost: 0,
       expandable: true,
+      clusterId: r.clusterId,
     }));
   }
   // Slice rows proportional to selected account so the table reflects the scope
@@ -1121,7 +1122,7 @@ export default function ExecutiveOverview() {
                               />
                             ) : isEmr ? (
                               <EMRHistorySubsection
-                                clusterId={row.name}
+                                clusterId={(row as any).clusterId || row.name}
                                 onAnalyzeLogs={(runId) => {
                                   setSelectedJobId(runId);
                                   setSelectedJobName(row.name);
