@@ -134,6 +134,7 @@ def active_incidents() -> List[ActiveIncident]:
             acknowledged=r.status not in ("Open", "Investigating"),
             escalationLevel=0,
             age=r.age,
+            rca=r.rca,
         )
         for r in records
     ]

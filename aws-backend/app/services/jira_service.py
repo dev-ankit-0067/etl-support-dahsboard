@@ -43,6 +43,33 @@ class JiraClient:
         return cls._instance
 
 
+def _adf_to_text(adf) -> str | None:
+    """Recursively extract plain text from Atlassian Document Format."""
+    if adf is None:
+        return None
+    if isinstance(adf, str):
+        return adf
+    if isinstance(adf, dict):
+        if adf.get("type") == "text":
+            return adf.get("text", "")
+        parts = [_adf_to_text(child) for child in adf.get("content", [])]
+        return " ".join(p for p in parts if p)
+    if isinstance(adf, list):
+        parts = [_adf_to_text(item) for item in adf]
+        return " ".join(p for p in parts if p)
+    return None
+
+
+def _extract_root_cause(adf) -> str | None:
+    """Extract only the Root Cause section from a Jira ADF description."""
+    text = _adf_to_text(adf)
+    if not text:
+        return None
+    import re
+    match = re.search(r"###\s*Root Cause\s*\n([\s\S]*?)(?=\n###|$)", text)
+    return match.group(1).strip() if match else None
+
+
 def _get_incident_age(created_date: str) -> str:
     """Calculate human-readable age from created date."""
     try:
@@ -123,6 +150,7 @@ def list_records(limit: int = 50) -> List[IncidentRecord]:
                     createdAt=created.isoformat(),
                     owner=issue.fields.assignee.displayName if issue.fields.assignee else "Unassigned",
                     age=_get_incident_age(created_str),
+                    rca=_extract_root_cause(getattr(issue.fields, "description", None)),
                 )
                 out.append(record)
             except Exception as exc:

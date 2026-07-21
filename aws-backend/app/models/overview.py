@@ -59,3 +59,4 @@ class ActiveIncident(BaseModel):
     acknowledged: bool
     escalationLevel: int
     age: str
+    rca: str | None = None
