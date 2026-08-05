@@ -558,6 +558,7 @@ function EMRHistorySubsection({ clusterId, onAnalyzeLogs, onGetRca, onLogJiraTic
         <TableHeader>
           <TableRow className="bg-slate-100/60 hover:bg-slate-100/60">
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Step ID</TableHead>
+            <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Job Name</TableHead>
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Status</TableHead>
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Start Time</TableHead>
             <TableHead className="text-[11px] uppercase tracking-wide text-slate-500">Duration</TableHead>
@@ -569,6 +570,7 @@ function EMRHistorySubsection({ clusterId, onAnalyzeLogs, onGetRca, onLogJiraTic
           {recentRuns.map((run: EMRRun) => (
             <TableRow key={run.id} className="hover:bg-white">
               <TableCell className="text-xs font-mono text-muted-foreground">{run.id}</TableCell>
+              <TableCell className="text-xs text-slate-700">{run.name || "—"}</TableCell>
               <TableCell>{statusBadge(run.status)}</TableCell>
               <TableCell className="text-xs text-muted-foreground">{new Date(run.startTime).toLocaleString()}</TableCell>
               <TableCell className="text-xs"><span className="flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{run.duration || "—"}</span></TableCell>
@@ -721,9 +723,7 @@ export default function ExecutiveOverview() {
   const uniqueResources = isLambda
     ? new Set(filteredLambdaRuns.map((r) => r.functionName)).size
     : isEmr
-    ? new Set(filteredEmrRuns.map((r) =>
-        r.serviceType === "serverless" ? `${r.clusterId}:${r.id}` : r.clusterId,
-      )).size
+    ? new Set(filteredEmrRuns.map((r) => r.clusterId)).size
     : new Set(filteredJobRuns.map((r) => r.pipelineName)).size;
 
   let totalCount: number;
@@ -753,7 +753,7 @@ export default function ExecutiveOverview() {
       : isEmr
       ? (() => {
           const grouped = filteredEmrRuns.reduce((acc: Record<string, EMRRun>, run: EMRRun) => {
-            const key = run.serviceType === "serverless" ? `${run.clusterId}:${run.id}` : run.clusterId;
+            const key = run.clusterId;
             if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
               acc[key] = run;
             }
@@ -785,7 +785,7 @@ export default function ExecutiveOverview() {
     ? "Across all EMR clusters"
     : "Across all Glue jobs";
   const tableTitle = isLambda ? "Active Invocations" : isEmr ? "EMR Steps" : "Active Jobs";
-  const nameHeader = isLambda ? "Function Name" : isEmr ? "Cluster ID" : "Job Name";
+  const nameHeader = isLambda ? "Function Name" : isEmr ? "Application" : "Job Name";
   const costHeader = isLambda ? "Cost/Invocation" : isEmr ? "Cost/Step" : "Cost/Run";
 
   type Row = {
@@ -797,6 +797,7 @@ export default function ExecutiveOverview() {
     duration: string;
     cost: number;
     expandable: boolean;
+    latestJobName?: string;
   };
   const allRows: Row[] = isLambda
     ? (() => {
@@ -843,7 +844,7 @@ export default function ExecutiveOverview() {
   let rowsForDisplay: Row[] = allRows;
   if (isEmr) {
     const grouped = filteredEmrRuns.reduce((acc: Record<string, EMRRun>, run: EMRRun) => {
-      const key = run.serviceType === "serverless" ? `${run.clusterId}:${run.id}` : run.clusterId;
+      const key = run.clusterId;
       if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
         acc[key] = run;
       }
@@ -853,7 +854,7 @@ export default function ExecutiveOverview() {
       id: r.id,
       name:
         r.serviceType === "serverless" && r.clusterName
-          ? `${r.clusterName} / ${r.name}`
+          ? r.clusterName
           : r.clusterId,
       status: r.status,
       startTime: r.startTime,
@@ -862,6 +863,7 @@ export default function ExecutiveOverview() {
       cost: 0,
       expandable: true,
       clusterId: r.clusterId,
+      latestJobName: r.name,
     }));
   }
   // Slice rows proportional to selected account so the table reflects the scope

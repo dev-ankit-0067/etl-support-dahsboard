@@ -41,3 +41,13 @@ def get_emr_logs(job_run_id: str, app_id: str = Query("", description="Applicati
         limit: Maximum number of log events to return (1-1000, default 100)
     """
     return cloudwatch_service.get_emr_serverless_logs(job_run_id, app_id=app_id, limit=limit)
+
+
+@router.get("/emr/{job_run_id}")
+def get_emr_logs_alias(job_run_id: str, app_id: str = Query("", description="Application ID for filtering"), limit: int = Query(100, ge=1, le=1000)):
+    """
+    Alias route for EMR Serverless logs.
+
+    This alias maintains compatibility with frontend code or links that still use /api/logs/emr/.
+    """
+    return cloudwatch_service.get_emr_serverless_logs(job_run_id, app_id=app_id, limit=limit)

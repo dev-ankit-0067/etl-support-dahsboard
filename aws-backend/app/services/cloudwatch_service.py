@@ -207,69 +207,122 @@ def get_emr_serverless_logs(job_run_id: str, app_id: str = "", limit: int = 1000
     """
     try:
         logs = client("logs")
-        # EMR Serverless logs are typically in /aws-emr-serverless/
-        # Try to find log streams with the job run ID
-        
-        # Common EMR log group patterns
-        log_groups = [
-            "/aws-emr-serverless/applications",
-            "/aws-emr-serverless/",
+
+        # Search for the actual EMR Serverless log group(s) containing this job run.
+        # CloudWatch log groups can be under either:
+        # /aws-emr-serverless/applications/<applicationId>/jobs/<jobRunId>
+        # or /aws/emr-serverless/<applicationId>/jobs/<jobRunId>
+        group_prefixes = [
             f"/aws-emr-serverless/applications/{app_id}" if app_id else None,
+            "/aws-emr-serverless/applications",
+            "/aws-emr-serverless",
+            f"/aws/emr-serverless/{app_id}" if app_id else None,
+            "/aws/emr-serverless",
         ]
-        
+
         all_events = []
         found_group = None
-        
-        for log_group in log_groups:
-            if not log_group:
+
+        for prefix in group_prefixes:
+            if not prefix:
                 continue
+
             try:
-                # Try to get log streams for this job
-                streams = logs.describe_log_streams(
-                    logGroupName=log_group,
-                    logStreamNamePrefix=job_run_id,  # Filter by job run ID
-                    limit=10
-                ).get("logStreams", [])
-                
-                if streams:
-                    found_group = log_group
-                    for stream in streams:
-                        try:
-                            response = logs.get_log_events(
-                                logGroupName=log_group,
-                                logStreamName=stream["logStreamName"],
-                                limit=limit // max(1, len(streams)) + 20,
-                                startFromHead=False,
-                            )
-                            
-                            for event in response.get("events", []):
-                                all_events.append({
-                                    "timestamp": datetime.fromtimestamp(
-                                        event["timestamp"] / 1000, tz=timezone.utc
-                                    ).isoformat(),
-                                    "message": event["message"],
-                                    "stream": stream["logStreamName"],
-                                })
-                        except (BotoCoreError, ClientError) as e:
-                            log.warning(f"Failed to fetch logs from stream {stream['logStreamName']}: {e}")
-                            continue
-                    break  # Found logs, no need to try other groups
-            except (BotoCoreError, ClientError):
+                response = logs.describe_log_groups(
+                    logGroupNamePrefix=prefix,
+                    limit=50,
+                )
+            except (BotoCoreError, ClientError) as exc:
+                log.warning("Failed to describe log groups for prefix %s: %s", prefix, exc)
                 continue
-        
-        # Sort by timestamp descending (most recent first) and limit
+
+            groups = response.get("logGroups", [])
+            while response.get("nextToken"):
+                response = logs.describe_log_groups(
+                    logGroupNamePrefix=prefix,
+                    nextToken=response["nextToken"],
+                    limit=50,
+                )
+                groups.extend(response.get("logGroups", []))
+
+            for group in groups:
+                log_group_name = group.get("logGroupName")
+                if not log_group_name:
+                    continue
+
+                try:
+                    # Describe log streams (page through) and filter by job_run_id appearing anywhere
+                    streams = []
+                    resp_streams = logs.describe_log_streams(
+                        logGroupName=log_group_name,
+                        limit=50,
+                    )
+                    streams.extend(resp_streams.get("logStreams", []))
+                    next_token = resp_streams.get("nextToken")
+                    while next_token:
+                        resp_streams = logs.describe_log_streams(
+                            logGroupName=log_group_name,
+                            nextToken=next_token,
+                            limit=50,
+                        )
+                        streams.extend(resp_streams.get("logStreams", []))
+                        next_token = resp_streams.get("nextToken")
+
+                    # Keep only streams whose name contains the job_run_id (CloudWatch stream names often
+                    # embed the application and job path, e.g. /applications/<appId>/jobs/<jobRunId>/...)
+                    streams = [s for s in streams if job_run_id in (s.get("logStreamName") or "")]
+                    log.info("CloudWatch: matching streams in %s for %s: %s", log_group_name, job_run_id, [s.get("logStreamName") for s in streams])
+                except (BotoCoreError, ClientError) as exc:
+                    log.warning("Failed to describe log streams for group %s: %s", log_group_name, exc)
+                    continue
+
+                if not streams:
+                    continue
+
+                found_group = log_group_name
+                for stream in streams:
+                    stream_name = stream.get("logStreamName")
+                    if not stream_name:
+                        continue
+
+                    try:
+                        response = logs.get_log_events(
+                            logGroupName=log_group_name,
+                            logStreamName=stream_name,
+                            limit=limit // max(1, len(streams)) + 20,
+                            startFromHead=False,
+                        )
+
+                        for event in response.get("events", []):
+                            all_events.append({
+                                "timestamp": datetime.fromtimestamp(
+                                    event["timestamp"] / 1000, tz=timezone.utc
+                                ).isoformat(),
+                                "message": event["message"],
+                                "stream": stream_name,
+                            })
+                    except (BotoCoreError, ClientError) as exc:
+                        log.warning("Failed to fetch logs from stream %s/%s: %s", log_group_name, stream_name, exc)
+                        continue
+
+                if all_events:
+                    break
+
+            if all_events:
+                break
+
         all_events.sort(key=lambda x: x["timestamp"], reverse=True)
         all_events = all_events[:limit]
-        
+
         return {
             "jobRunId": job_run_id,
             "applicationId": app_id,
-            "logGroup": found_group or "/aws-emr-serverless/applications",
+            "logGroup": found_group or "/aws/emr-serverless",
             "events": all_events,
             "eventCount": len(all_events),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-    
+
     except (BotoCoreError, ClientError) as exc:
         log.error(f"Failed to fetch EMR logs for {job_run_id}: {exc}")
         return {

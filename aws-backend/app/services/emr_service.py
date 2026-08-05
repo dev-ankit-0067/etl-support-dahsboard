@@ -77,7 +77,7 @@ def list_serverless_applications(states: List[str] | None = None) -> List[EMRClu
 
 
 @cached("short")
-def recent_serverless_runs(limit_per_application: int = 3) -> List[EMRRun]:
+def recent_serverless_runs(limit_per_application: int = 100) -> List[EMRRun]:
     emr_serverless = client("emr-serverless")
     runs: List[EMRRun] = []
     applications = list_serverless_applications()
@@ -87,33 +87,45 @@ def recent_serverless_runs(limit_per_application: int = 3) -> List[EMRRun]:
     for app in applications:
         app_id = app.id
         log.info("EMR Serverless: Fetching runs for app %s (%s, state=%s)", app_id, app.name, app.state)
-        try:
-            resp = emr_serverless.list_job_runs(applicationId=app_id, maxResults=limit_per_application)
-            job_runs = resp.get("jobRuns", [])
-            log.info("EMR Serverless: App %s has %d job runs", app_id, len(job_runs))
-        except (BotoCoreError, ClientError) as exc:
-            log.error("EMR Serverless list_job_runs failed for %s: %s", app_id, exc)
-            continue
+        next_token = None
+        while True:
+            try:
+                kwargs = {
+                    "applicationId": app_id,
+                    "maxResults": limit_per_application,
+                }
+                if next_token:
+                    kwargs["nextToken"] = next_token
+                resp = emr_serverless.list_job_runs(**kwargs)
+                job_runs = resp.get("jobRuns", [])
+                log.info("EMR Serverless: App %s returned %d job runs", app_id, len(job_runs))
+            except (BotoCoreError, ClientError) as exc:
+                log.error("EMR Serverless list_job_runs failed for %s: %s", app_id, exc)
+                break
 
-        for jr in job_runs:
-            status = jr.get("state", "")
-            # AWS EMR Serverless uses attemptCreatedAt / createdAt and attemptUpdatedAt / updatedAt
-            started = jr.get("attemptCreatedAt") or jr.get("createdAt")
-            finished = jr.get("attemptUpdatedAt") or jr.get("updatedAt")
-            log.info("EMR Serverless: Processing job %s (%s) in state %s, started=%s, finished=%s", jr.get("id"), jr.get("name"), status, started, finished)
-            runs.append(
-                EMRRun(
-                    id=jr.get("id", ""),
-                    clusterId=app_id,
-                    clusterName=app.name,
-                    name=jr.get("name", ""),
-                    status=status,
-                    startTime=started.isoformat() if started else "",
-                    endTime=finished.isoformat() if finished else None,
-                    duration=_format_run_duration(started, finished),
-                    serviceType="serverless",
+            for jr in job_runs:
+                status = jr.get("state", "")
+                started = jr.get("attemptCreatedAt") or jr.get("createdAt")
+                finished = jr.get("attemptUpdatedAt") or jr.get("updatedAt")
+                log.info("EMR Serverless: Processing job %s (%s) in state %s, started=%s, finished=%s", jr.get("id"), jr.get("name"), status, started, finished)
+                runs.append(
+                    EMRRun(
+                        id=jr.get("id", ""),
+                        clusterId=app_id,
+                        clusterName=app.name,
+                        name=jr.get("name", ""),
+                        status=status,
+                        startTime=started.isoformat() if started else "",
+                        endTime=finished.isoformat() if finished else None,
+                        duration=_format_run_duration(started, finished),
+                        serviceType="serverless",
+                    )
                 )
-            )
+
+            next_token = resp.get("nextToken")
+            if not next_token:
+                break
+
     log.info("EMR Serverless: Returning %d total runs", len(runs))
     return runs
 
