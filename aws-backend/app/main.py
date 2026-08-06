@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from . import __version__
 from .config import get_settings
 from .logging_config import configure_logging
-from .routers import agents, cloudwatch, costs, emr, health, incidents, lambdas, overview, pipelines, rca
+from .routers import agent, agents, cloudwatch, costs, emr, health, incidents, lambdas, overview, pipelines, rca
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +49,7 @@ def create_app() -> FastAPI:
         rca.router,
         cloudwatch.router,
         agents.router,
+        agent.router,
     ]
     for r in api_routers:
         app.include_router(r, prefix=settings.api_prefix)
