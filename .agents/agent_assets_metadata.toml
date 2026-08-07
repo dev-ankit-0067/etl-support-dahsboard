@@ -8,7 +8,7 @@ title = "generated_image"
 
 [[outputs]]
 id = "NBlPs1raIhWOXEciepkxN"
-uri = "file://docs/OpsGuardian-Product-Design-Document.md"
+uri = "file://docs/codebase/OpsGuardian-Product-Design-Document.md"
 type = "text"
 title = "OpsGuardian — Product Design Document"
 

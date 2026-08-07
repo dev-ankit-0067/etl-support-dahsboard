@@ -519,7 +519,7 @@ export default function ExecutiveOverview() {
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-  const callAgentsApi = async (logId: string, mode: "log" | "jira") => {
+  const callAgentsApi = async (logId: string, mode: "log" | "jira", resource: "job" | "lambda" = "job") => {
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     setAnalysisMode(mode);
     setAnalysisLogId(logId);
@@ -531,7 +531,7 @@ export default function ExecutiveOverview() {
       const res = await fetch(`${base}/api/agents/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ log_id: logId, type: mode }),
+        body: JSON.stringify({ log_id: logId, type: mode, resource_type: resource }),
       });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
@@ -947,8 +947,8 @@ export default function ExecutiveOverview() {
                                   setSelectedJobName(row.name);
                                   setLogsModalOpen(true);
                                 }}
-                                onGetRca={(invocationId) => callAgentsApi(invocationId, "log")}
-                                onLogJiraTicket={(invocationId) => callAgentsApi(invocationId, "jira")}
+                                onGetRca={() => callAgentsApi(row.name, "log", "lambda")}
+                                onLogJiraTicket={() => callAgentsApi(row.name, "jira", "lambda")}
                               />
                             ) : (
                               <JobHistorySubsection
@@ -958,8 +958,8 @@ export default function ExecutiveOverview() {
                                   setSelectedJobName(row.name);
                                   setLogsModalOpen(true);
                                 }}
-                                onGetRca={(runId) => callAgentsApi(runId, "log")}
-                                onLogJiraTicket={(runId) => callAgentsApi(runId, "jira")}
+                                onGetRca={(runId) => callAgentsApi(runId, "log", "job")}
+                                onLogJiraTicket={(runId) => callAgentsApi(runId, "jira", "job")}
                               />
                             )}
                           </TableCell>

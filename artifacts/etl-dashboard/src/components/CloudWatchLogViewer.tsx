@@ -33,11 +33,11 @@ interface CloudWatchLogsResponse {
   error?: string;
 }
 
-interface LogAnalysisResponse {
-  summary: string;
-  rca?: string;
-  insights?: string;
-  model?: string;
+interface AgentAnalyzeResponse {
+  log_id: string;
+  type: string;
+  analysis: string;
+  jira_key?: string | null;
 }
 
 interface Props {
@@ -107,26 +107,30 @@ export default function CloudWatchLogViewer({
     document.body.removeChild(element);
   };
 
+  // The agent identifies a Glue job by its run id, but a Lambda by its function name.
+  const agentLogId = resourceType === "lambda" ? jobName : jobId;
+
   const handleRcaAnalysis = async () => {
-    if (logs.length === 0) return;
+    if (!agentLogId) return;
     setActionLoading("analysis");
     setAnalysisResult(null);
     try {
-      const logText = logs.map((e) => `[${e.timestamp}] ${e.message}`).join("\n");
-      const response = await fetch("/api/agent/analysis", {
+      // Point at the agentic workflow: the LangChain agent fetches the
+      // CloudWatch logs itself from the identifier and returns the analysis.
+      const response = await fetch("/api/agents/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, jobName, resourceType, logText }),
+        body: JSON.stringify({ log_id: agentLogId, type: "log", resource_type: resourceType }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         throw new Error(payload?.detail || "Failed to analyze logs.");
       }
-      const result = (await response.json()) as LogAnalysisResponse;
-      setAnalysisResult(result.rca ?? result.summary);
+      const result = (await response.json()) as AgentAnalyzeResponse;
+      setAnalysisResult(result.analysis);
       toast({
         title: "RCA analysis complete",
-        description: "CloudWatch logs were analyzed successfully.",
+        description: "CloudWatch logs were analyzed by the agent.",
       });
     } catch (err) {
       toast({
@@ -140,34 +144,36 @@ export default function CloudWatchLogViewer({
   };
 
   const handleCreateJiraTicket = async () => {
-    if (logs.length === 0) return;
+    if (!agentLogId) return;
     setActionLoading("jira");
     setJiraResult(null);
     try {
-      const ticketText = logs.slice(-100).map((e) => `[${e.timestamp}] ${e.message}`).join("\n");
-      const description = `CloudWatch ${resourceType === "lambda" ? "Lambda" : "Glue Job"} log ticket for ${jobName ?? jobId ?? "unknown"}\n\n${ticketText}`;
-      const response = await fetch("/api/agent/jira", {
+      // Agentic workflow: the LangChain agent fetches the logs, analyses them,
+      // and creates the Jira ticket itself, returning the analysis + ticket key.
+      const response = await fetch("/api/agents/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          summary: null,
-          description,
-          rca: analysisResult,
-          jobId,
-          jobName,
-          resourceType,
-        }),
+        body: JSON.stringify({ log_id: agentLogId, type: "jira", resource_type: resourceType }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         throw new Error(payload?.detail || "Failed to create Jira ticket.");
       }
-      const result = await response.json();
-      setJiraResult({ issueKey: result.issueKey, issueUrl: result.issueUrl });
-      toast({
-        title: "Jira ticket created",
-        description: result.issueKey,
-      });
+      const result = (await response.json()) as AgentAnalyzeResponse;
+      if (result.analysis) setAnalysisResult(result.analysis);
+      if (result.jira_key) {
+        setJiraResult({ issueKey: result.jira_key });
+        toast({
+          title: "Jira ticket created",
+          description: result.jira_key,
+        });
+      } else {
+        toast({
+          title: "Analysis complete",
+          description: "The agent did not return a Jira ticket key.",
+          variant: "destructive",
+        });
+      }
     } catch (err) {
       toast({
         title: "Jira ticket failed",

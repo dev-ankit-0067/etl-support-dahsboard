@@ -34,6 +34,19 @@ def fetch_cloudwatch_logs(job_id: str) -> str:
 
 
 @tool
+def fetch_lambda_logs(function_name: str) -> str:
+    """Fetch CloudWatch logs for an AWS Lambda function by name and return them as plain text."""
+    data = cloudwatch_service.get_lambda_logs(function_name)
+    events = data.get("events", [])
+    if not events:
+        return (
+            f"No log events found for Lambda function '{function_name}'. "
+            f"Message: {data.get('message', 'Unknown error')}"
+        )
+    return "\n".join(f"[{e['timestamp']}] {e['message']}" for e in events)
+
+
+@tool
 def create_jira_ticket(summary: str, description: str, priority: str = "Medium") -> str:
     """Create a Jira issue for an ETL pipeline incident. Returns the created ticket key.
 
@@ -71,8 +84,8 @@ def _get_chat_model() -> ChatHuggingFace:
 
 _LOG_ANALYSIS_SYSTEM = """You are an expert AWS ETL pipeline operations engineer.
 
-When given a Glue job run ID:
-1. Call fetch_cloudwatch_logs to retrieve the logs.
+When given a resource identifier (a Glue job run ID or a Lambda function name):
+1. Call the available log-retrieval tool to fetch the CloudWatch logs for that resource.
 2. Identify all errors, exceptions, warnings, and anomalies.
 3. Determine the root cause.
 4. Rate severity: P1 (data loss / pipeline fully down), P2 (significant degradation),
@@ -89,8 +102,8 @@ Respond with a structured analysis in this exact format:
 
 _JIRA_CREATION_SYSTEM = """You are an expert AWS ETL pipeline operations engineer with access to CloudWatch and Jira.
 
-When given a Glue job run ID:
-1. Call fetch_cloudwatch_logs to retrieve the logs.
+When given a resource identifier (a Glue job run ID or a Lambda function name):
+1. Call the available log-retrieval tool to fetch the CloudWatch logs for that resource.
 2. Analyse the logs: identify root cause, severity, and affected components.
 3. Call create_jira_ticket with:
    - summary: "[<SEVERITY>] <pipeline_name>: <one-line issue>"
@@ -103,16 +116,27 @@ When given a Glue job run ID:
 # Agent runners
 # ---------------------------------------------------------------------------
 
-def run_log_analysis_agent(log_id: str) -> Dict[str, Any]:
-    """Fetch and analyse CloudWatch logs for a Glue job run using a LangChain agent."""
+def _log_tool(resource_type: str):
+    """Return the log-retrieval tool appropriate to the resource type."""
+    return fetch_lambda_logs if resource_type == "lambda" else fetch_cloudwatch_logs
+
+
+def _resource_label(resource_type: str) -> str:
+    return "Lambda function name" if resource_type == "lambda" else "Glue job run ID"
+
+
+def run_log_analysis_agent(log_id: str, resource_type: str = "job") -> Dict[str, Any]:
+    """Fetch and analyse CloudWatch logs for a Glue job run or Lambda function using a LangChain agent."""
     llm = _get_chat_model()
     agent = create_agent(
         model=llm,
-        tools=[fetch_cloudwatch_logs],
+        tools=[_log_tool(resource_type)],
         system_prompt=_LOG_ANALYSIS_SYSTEM,
     )
 
-    result = agent.invoke({"messages": [("human", f"Analyse logs for job ID: {log_id}")]})
+    result = agent.invoke({
+        "messages": [("human", f"Analyse logs for {_resource_label(resource_type)}: {log_id}")]
+    })
     output = result["messages"][-1].content
 
     return {
@@ -123,17 +147,17 @@ def run_log_analysis_agent(log_id: str) -> Dict[str, Any]:
     }
 
 
-def run_jira_creation_agent(log_id: str) -> Dict[str, Any]:
+def run_jira_creation_agent(log_id: str, resource_type: str = "job") -> Dict[str, Any]:
     """Fetch logs, analyse them, and create a Jira ticket via a LangChain agent."""
     llm = _get_chat_model()
     agent = create_agent(
         model=llm,
-        tools=[fetch_cloudwatch_logs, create_jira_ticket],
+        tools=[_log_tool(resource_type), create_jira_ticket],
         system_prompt=_JIRA_CREATION_SYSTEM,
     )
 
     result = agent.invoke({
-        "messages": [("human", f"Analyse logs and create a Jira ticket for job ID: {log_id}")]
+        "messages": [("human", f"Analyse logs and create a Jira ticket for {_resource_label(resource_type)}: {log_id}")]
     })
     output = result["messages"][-1].content
 

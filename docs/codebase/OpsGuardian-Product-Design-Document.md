@@ -701,4 +701,4 @@ GitHub PR
 
 ---
 
-*End of document. Reviewers: please add comments inline as suggestions; structural changes via PR against `docs/OpsGuardian-Product-Design-Document.md`.*
+*End of document. Reviewers: please add comments inline as suggestions; structural changes via PR against `docs/codebase/OpsGuardian-Product-Design-Document.md`.*
