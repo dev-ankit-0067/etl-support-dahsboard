@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1140" font-family="'Segoe UI', Arial, sans-serif">
+  <!-- ============================================================= -->
+  <!-- OpsGuardian — AWS Fargate deployment architecture             -->
+  <!-- Editable vector diagram. Groups are labelled with id=.        -->
+  <!-- Colour legend and flow-type legend are bottom-right.          -->
+  <!-- ============================================================= -->
+  <defs>
+    <style>
+      .h1   { font-size: 22px; font-weight: 700; fill: #0f172a; }
+      .h2   { font-size: 12.5px; font-weight: 500; fill: #475569; }
+      .zone { font-size: 11px; font-weight: 700; fill: #64748b; letter-spacing: .3px; }
+      .title{ font-size: 12px; font-weight: 700; fill: #0f172a; }
+      .svc  { font-size: 11.5px; font-weight: 600; fill: #0f172a; }
+      .note { font-size: 9.8px; fill: #475569; }
+      .flbl { font-size: 9.5px; font-weight: 600; fill: #334155; }
+
+      .box        { rx: 8; stroke-width: 1.3; }
+      .b-net      { fill: #eff6ff; stroke: #3b82f6; }
+      .b-compute  { fill: #fff7ed; stroke: #f97316; }
+      .b-sec      { fill: #fef2f2; stroke: #ef4444; }
+      .b-store    { fill: #faf5ff; stroke: #a855f7; }
+      .b-mgmt     { fill: #f0fdf4; stroke: #22c55e; }
+      .b-ext      { fill: #f0fdfa; stroke: #14b8a6; }
+      .b-client   { fill: #f8fafc; stroke: #94a3b8; }
+
+      .account    { fill: #fdfcf9; stroke: #f59e0b; stroke-width: 2; }
+      .vpc        { fill: #f6faff; stroke: #2563eb; stroke-width: 1.5; }
+      .subnet-pub { fill: #ecfeff; stroke: #06b6d4; stroke-dasharray: 5 3; }
+      .subnet-priv{ fill: #f1f5f9; stroke: #64748b; stroke-dasharray: 5 3; }
+      .clientacct { fill: #fbfcfd; stroke: #64748b; stroke-width: 1.5; stroke-dasharray: 6 4; }
+
+      .flow   { fill: none; stroke: #475569; stroke-width: 1.7; marker-end: url(#ah); }
+      .ctrl   { fill: none; stroke: #dc2626; stroke-width: 1.5; stroke-dasharray: 6 4; marker-end: url(#ah-r); }
+      .egress { fill: none; stroke: #0d9488; stroke-width: 1.5; stroke-dasharray: 2 4; marker-end: url(#ah-t); }
+    </style>
+
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#475569"/>
+    </marker>
+    <marker id="ah-r" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#dc2626"/>
+    </marker>
+    <marker id="ah-t" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#0d9488"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1140" fill="#ffffff"/>
+
+  <!-- ===================== Header ===================== -->
+  <g id="header">
+    <text class="h1" x="40" y="42">OpsGuardian — AWS Fargate Deployment Architecture</text>
+    <text class="h2" x="40" y="63">ALB ingress · Amazon ECS on AWS Fargate · secrets in AWS Secrets Manager · cross-account log &amp; metric access via STS AssumeRole</text>
+  </g>
+
+  <!-- ===================== Ingress (left) ===================== -->
+  <g id="ingress">
+    <rect class="box b-net" x="40" y="110" width="150" height="66"/>
+    <text class="svc" x="115" y="138" text-anchor="middle">Users / Browsers</text>
+    <text class="note" x="115" y="156" text-anchor="middle">Ops &amp; exec teams</text>
+
+    <rect class="box b-net" x="40" y="220" width="150" height="58"/>
+    <text class="svc" x="115" y="244" text-anchor="middle">Amazon Route 53</text>
+    <text class="note" x="115" y="261" text-anchor="middle">DNS · ACM TLS cert</text>
+
+    <rect class="box b-net" x="40" y="322" width="150" height="58"/>
+    <text class="svc" x="115" y="346" text-anchor="middle">Internet Gateway</text>
+    <text class="note" x="115" y="363" text-anchor="middle">public ingress/egress</text>
+
+    <path class="flow" d="M115,176 V220"/>
+    <path class="flow" d="M115,278 V322"/>
+    <!-- IGW -> ALB (orthogonal elbow into the VPC) -->
+    <path class="flow" d="M190,351 H204 V183 H264"/>
+    <text class="flbl" x="120" y="405">HTTPS 443 → ALB</text>
+  </g>
+
+  <!-- ===================== Platform AWS Account ===================== -->
+  <g id="platform-account">
+    <rect class="account" x="220" y="88" width="1120" height="760" rx="12"/>
+    <text class="zone" x="240" y="110">OPSGUARDIAN AWS ACCOUNT (PLATFORM)  ·  region us-east-1</text>
+
+    <!-- VPC -->
+    <rect class="vpc" x="240" y="128" width="740" height="700" rx="10"/>
+    <text class="zone" x="256" y="148" fill="#2563eb">VPC  10.0.0.0/16   ·   Multi-AZ</text>
+
+    <!-- Application Load Balancer -->
+    <rect class="box b-net" x="262" y="158" width="696" height="50"/>
+    <text class="svc" x="610" y="180" text-anchor="middle">Application Load Balancer (ALB) — HTTPS :443, public</text>
+    <text class="note" x="610" y="197" text-anchor="middle">listener rules → path routing:  /api/*  →  backend TG      /*  →  frontend TG</text>
+
+    <!-- Public subnets -->
+    <g id="public-subnets">
+      <rect class="subnet-pub" x="262" y="224" width="343" height="78" rx="8"/>
+      <text class="zone" x="274" y="241" fill="#0891b2">PUBLIC SUBNET · AZ-a</text>
+      <rect class="box b-net" x="360" y="248" width="230" height="44"/>
+      <text class="svc" x="475" y="275" text-anchor="middle">NAT Gateway (AZ-a)</text>
+
+      <rect class="subnet-pub" x="615" y="224" width="343" height="78" rx="8"/>
+      <text class="zone" x="627" y="241" fill="#0891b2">PUBLIC SUBNET · AZ-b</text>
+      <rect class="box b-net" x="713" y="248" width="230" height="44"/>
+      <text class="svc" x="828" y="275" text-anchor="middle">NAT Gateway (AZ-b)</text>
+    </g>
+
+    <!-- Private subnets + Fargate -->
+    <g id="private-subnets">
+      <rect class="subnet-priv" x="262" y="318" width="343" height="494" rx="8"/>
+      <text class="zone" x="274" y="335" fill="#475569">PRIVATE SUBNET · AZ-a</text>
+      <rect class="subnet-priv" x="615" y="318" width="343" height="494" rx="8"/>
+      <text class="zone" x="627" y="335" fill="#475569">PRIVATE SUBNET · AZ-b</text>
+
+      <text class="zone" x="286" y="358" fill="#f97316">AMAZON ECS on AWS FARGATE — multi-AZ, private (no public IPs)</text>
+
+      <!-- Frontend tasks -->
+      <rect class="box b-compute" x="282" y="372" width="303" height="86"/>
+      <text class="svc" x="433" y="398" text-anchor="middle">Frontend Service — Task</text>
+      <text class="note" x="433" y="416" text-anchor="middle">nginx + React SPA (Vite build)</text>
+      <text class="note" x="433" y="431" text-anchor="middle">container :3000 · target group</text>
+
+      <rect class="box b-compute" x="635" y="372" width="303" height="86"/>
+      <text class="svc" x="786" y="398" text-anchor="middle">Frontend Service — Task</text>
+      <text class="note" x="786" y="416" text-anchor="middle">nginx + React SPA (Vite build)</text>
+      <text class="note" x="786" y="431" text-anchor="middle">container :3000 · target group</text>
+
+      <!-- Backend tasks -->
+      <rect class="box b-compute" x="282" y="474" width="303" height="104"/>
+      <text class="svc" x="433" y="500" text-anchor="middle">Backend Service — Task</text>
+      <text class="note" x="433" y="518" text-anchor="middle">FastAPI / uvicorn (gunicorn)</text>
+      <text class="note" x="433" y="533" text-anchor="middle">container :8080 · target group</text>
+      <text class="note" x="433" y="550" text-anchor="middle">assumes client roles · reads secrets</text>
+
+      <rect class="box b-compute" x="635" y="474" width="303" height="104"/>
+      <text class="svc" x="786" y="500" text-anchor="middle">Backend Service — Task</text>
+      <text class="note" x="786" y="518" text-anchor="middle">FastAPI / uvicorn (gunicorn)</text>
+      <text class="note" x="786" y="533" text-anchor="middle">container :8080 · target group</text>
+      <text class="note" x="786" y="550" text-anchor="middle">assumes client roles · reads secrets</text>
+
+      <!-- VPC Endpoints -->
+      <rect class="box b-net" x="282" y="640" width="656" height="150"/>
+      <text class="title" x="610" y="663" text-anchor="middle">Interface VPC Endpoints — AWS PrivateLink</text>
+      <text class="note" x="610" y="683" text-anchor="middle">Secrets Manager · ECR (api + dkr) · STS · CloudWatch Logs · ECS/monitoring</text>
+      <text class="note" x="610" y="699" text-anchor="middle">Gateway Endpoint: Amazon S3 (ECR layers)</text>
+      <text class="note" x="610" y="724" text-anchor="middle" font-style="italic">Private, in-VPC path to AWS APIs — keeps AWS control-plane traffic off the public internet.</text>
+      <text class="note" x="610" y="740" text-anchor="middle" font-style="italic">Only third-party SaaS egress (Jira, HuggingFace) leaves via the NAT gateways.</text>
+    </g>
+
+    <!-- Regional services (right column) -->
+    <g id="regional-services">
+      <rect class="box b-store" x="1008" y="150" width="312" height="118"/>
+      <text class="title" x="1164" y="172" text-anchor="middle">AWS Secrets Manager</text>
+      <text class="note" x="1164" y="191" text-anchor="middle">Jira URL / username / API token</text>
+      <text class="note" x="1164" y="207" text-anchor="middle">HuggingFace inference token</text>
+      <text class="note" x="1164" y="223" text-anchor="middle">Client cross-account Role ARNs + ExternalId</text>
+      <text class="note" x="1164" y="239" text-anchor="middle">DB / app credentials</text>
+      <text class="note" x="1164" y="257" text-anchor="middle" font-style="italic">injected as task secrets · KMS-encrypted</text>
+
+      <rect class="box b-store" x="1008" y="286" width="312" height="60"/>
+      <text class="title" x="1164" y="311" text-anchor="middle">Amazon ECR</text>
+      <text class="note" x="1164" y="329" text-anchor="middle">frontend &amp; backend container images</text>
+
+      <rect class="box b-mgmt" x="1008" y="364" width="312" height="60"/>
+      <text class="title" x="1164" y="389" text-anchor="middle">Amazon CloudWatch Logs</text>
+      <text class="note" x="1164" y="407" text-anchor="middle">platform app logs (awslogs driver)</text>
+
+      <rect class="box b-sec" x="1008" y="442" width="312" height="60"/>
+      <text class="title" x="1164" y="467" text-anchor="middle">AWS STS</text>
+      <text class="note" x="1164" y="485" text-anchor="middle">AssumeRole → short-lived client creds</text>
+
+      <rect class="box b-sec" x="1008" y="520" width="312" height="120"/>
+      <text class="title" x="1164" y="542" text-anchor="middle">AWS IAM (roles)</text>
+      <text class="note" x="1164" y="561" text-anchor="middle">Task Execution Role — pull ECR, write logs,</text>
+      <text class="note" x="1164" y="576" text-anchor="middle">read Secrets Manager at task start</text>
+      <text class="note" x="1164" y="596" text-anchor="middle">Task Role — GetSecretValue at runtime,</text>
+      <text class="note" x="1164" y="611" text-anchor="middle">sts:AssumeRole into client accounts</text>
+      <text class="note" x="1164" y="629" text-anchor="middle" font-style="italic">least-privilege per iam-policy.json</text>
+
+      <rect class="box b-mgmt" x="1008" y="658" width="312" height="60"/>
+      <text class="title" x="1164" y="683" text-anchor="middle">CloudWatch Alarms · Container Insights</text>
+      <text class="note" x="1164" y="701" text-anchor="middle">health, scaling &amp; ALB target metrics</text>
+    </g>
+  </g>
+
+  <!-- ===================== External SaaS (far right) ===================== -->
+  <g id="external-saas">
+    <text class="zone" x="1362" y="120">EXTERNAL SaaS</text>
+    <rect class="box b-ext" x="1362" y="150" width="210" height="92"/>
+    <text class="title" x="1467" y="180" text-anchor="middle">Jira Cloud</text>
+    <text class="note" x="1467" y="200" text-anchor="middle">incidents · RCA</text>
+    <text class="note" x="1467" y="216" text-anchor="middle">ticket creation (jira SDK)</text>
+
+    <rect class="box b-ext" x="1362" y="262" width="210" height="92"/>
+    <text class="title" x="1467" y="292" text-anchor="middle">HuggingFace Inference</text>
+    <text class="note" x="1467" y="312" text-anchor="middle">LLM log analysis</text>
+    <text class="note" x="1467" y="328" text-anchor="middle">via LangChain agents</text>
+  </g>
+
+  <!-- ===================== Client AWS accounts (cross-account) ===================== -->
+  <g id="client-accounts">
+    <text class="zone" x="220" y="878" fill="#475569">CLIENT / TENANT AWS ACCOUNTS  ·  cross-account read-only access</text>
+
+    <!-- Client A -->
+    <rect class="clientacct" x="220" y="890" width="560" height="216" rx="10"/>
+    <text class="title" x="240" y="914">Client AWS Account A</text>
+    <rect class="box b-sec" x="240" y="926" width="520" height="60"/>
+    <text class="svc" x="500" y="949" text-anchor="middle">IAM Role: OpsGuardian-CrossAccount-ReadOnly</text>
+    <text class="note" x="500" y="967" text-anchor="middle">trust policy → Platform Task Role · requires ExternalId · least-privilege read scope</text>
+
+    <rect class="box b-mgmt" x="240" y="1004" width="126" height="86"/>
+    <text class="note" x="303" y="1040" text-anchor="middle">CloudWatch</text>
+    <text class="note" x="303" y="1054" text-anchor="middle">Logs</text>
+    <rect class="box b-compute" x="374" y="1004" width="120" height="86"/>
+    <text class="note" x="434" y="1050" text-anchor="middle">AWS Glue</text>
+    <rect class="box b-compute" x="502" y="1004" width="120" height="86"/>
+    <text class="note" x="562" y="1050" text-anchor="middle">AWS Lambda</text>
+    <rect class="box b-store" x="630" y="1004" width="130" height="86"/>
+    <text class="note" x="695" y="1043" text-anchor="middle">Cost Explorer</text>
+    <text class="note" x="695" y="1057" text-anchor="middle">+ Budgets</text>
+    <path class="flow" d="M500,986 V1004"/>
+    <text class="flbl" x="512" y="1000">read logs / metrics / cost</text>
+
+    <!-- Client B -->
+    <rect class="clientacct" x="800" y="890" width="540" height="216" rx="10"/>
+    <text class="title" x="820" y="914">Client AWS Account B</text>
+    <rect class="box b-sec" x="820" y="926" width="500" height="60"/>
+    <text class="svc" x="1070" y="949" text-anchor="middle">IAM Role: OpsGuardian-CrossAccount-ReadOnly</text>
+    <text class="note" x="1070" y="967" text-anchor="middle">trust policy → Platform Task Role · requires ExternalId</text>
+
+    <rect class="box b-mgmt" x="820" y="1004" width="120" height="86"/>
+    <text class="note" x="880" y="1040" text-anchor="middle">CloudWatch</text>
+    <text class="note" x="880" y="1054" text-anchor="middle">Logs</text>
+    <rect class="box b-compute" x="948" y="1004" width="114" height="86"/>
+    <text class="note" x="1005" y="1050" text-anchor="middle">AWS Glue</text>
+    <rect class="box b-compute" x="1070" y="1004" width="114" height="86"/>
+    <text class="note" x="1127" y="1050" text-anchor="middle">AWS Lambda</text>
+    <rect class="box b-store" x="1192" y="1004" width="128" height="86"/>
+    <text class="note" x="1256" y="1043" text-anchor="middle">Cost Explorer</text>
+    <text class="note" x="1256" y="1057" text-anchor="middle">+ Budgets</text>
+    <path class="flow" d="M1070,986 V1004"/>
+    <text class="flbl" x="1082" y="1000">read logs / metrics / cost</text>
+  </g>
+
+  <!-- ===================== Flows ===================== -->
+  <g id="flows">
+    <!-- ALB -> frontend target group -->
+    <path class="flow" d="M470,208 V372"/>
+    <path class="flow" d="M760,208 V372"/>
+    <text class="flbl" x="300" y="349">/*  → frontend TG</text>
+
+    <!-- ALB -> backend target group (down the AZ gutter, into task tops) -->
+    <path class="flow" d="M610,208 V468 H435 V474"/>
+    <path class="flow" d="M610,468 H785 V474"/>
+    <text class="flbl" x="601" y="300" transform="rotate(-90 601 300)" text-anchor="middle">/api/*  → backend TG</text>
+
+    <!-- Backend tasks -> VPC endpoints -->
+    <path class="flow" d="M433,578 V640"/>
+    <path class="flow" d="M786,578 V640"/>
+
+    <!-- VPC endpoints -> regional AWS services (PrivateLink, control-plane) -->
+    <path class="ctrl" d="M938,672 H972 V209 H1008"/>
+    <text class="flbl" x="946" y="205">GetSecretValue</text>
+    <path class="ctrl" d="M938,690 H988 V316 H1008"/>
+    <text class="flbl" x="946" y="312">pull image</text>
+    <path class="ctrl" d="M938,708 H998 V394 H1008"/>
+    <text class="flbl" x="946" y="390">PutLogEvents</text>
+    <path class="ctrl" d="M938,726 H960 V472 H1008"/>
+    <text class="flbl" x="946" y="468">AssumeRole</text>
+
+    <!-- Cross-account AssumeRole + read-only API sessions -->
+    <path class="ctrl" d="M430,790 V852 H500 V890"/>
+    <text class="flbl" x="438" y="846">sts:AssumeRole → read-only session</text>
+    <path class="ctrl" d="M820,790 V852 H1070 V890"/>
+    <text class="flbl" x="900" y="846">sts:AssumeRole → read-only session</text>
+
+    <!-- Egress to SaaS via NAT -> IGW -> internet -->
+    <path class="egress" d="M938,526 H960 V286 H945"/>
+    <text class="flbl" x="958" y="452" transform="rotate(-90 958 452)" text-anchor="middle">egress via NAT</text>
+    <path class="egress" d="M943,262 H1332 V188 H1362"/>
+    <path class="egress" d="M943,272 H1300 V308 H1362"/>
+    <text class="flbl" x="1362" y="138">HTTPS egress via NAT →</text>
+  </g>
+
+  <!-- ===================== Legends ===================== -->
+  <g id="legend-flows">
+    <rect x="1362" y="382" width="210" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text class="title" x="1372" y="402">Flow types</text>
+    <line x1="1372" y1="418" x2="1408" y2="418" class="flow"/>
+    <text class="note" x="1414" y="422">HTTP request path</text>
+    <line x1="1372" y1="442" x2="1408" y2="442" class="ctrl"/>
+    <text class="note" x="1414" y="446">IAM / secure control</text>
+    <text class="note" x="1414" y="459">(AssumeRole, Secrets, PrivateLink)</text>
+    <line x1="1372" y1="480" x2="1408" y2="480" class="egress"/>
+    <text class="note" x="1414" y="484">Internet egress (via NAT)</text>
+    <text class="note" x="1372" y="508" font-style="italic">Frontend &amp; backend run as separate</text>
+    <text class="note" x="1372" y="521" font-style="italic">ECS services behind one shared ALB.</text>
+  </g>
+
+  <g id="legend-colours">
+    <rect x="1362" y="546" width="210" height="182" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text class="title" x="1372" y="566">Categories</text>
+    <rect class="box b-net"     x="1372" y="576" width="16" height="14"/><text class="note" x="1396" y="587">Networking</text>
+    <rect class="box b-compute" x="1372" y="598" width="16" height="14"/><text class="note" x="1396" y="609">Compute · Fargate</text>
+    <rect class="box b-sec"     x="1372" y="620" width="16" height="14"/><text class="note" x="1396" y="631">Security &amp; identity</text>
+    <rect class="box b-store"   x="1372" y="642" width="16" height="14"/><text class="note" x="1396" y="653">Storage · secrets</text>
+    <rect class="box b-mgmt"    x="1372" y="664" width="16" height="14"/><text class="note" x="1396" y="675">Mgmt · observability</text>
+    <rect class="box b-ext"     x="1372" y="686" width="16" height="14"/><text class="note" x="1396" y="697">External SaaS</text>
+    <rect class="box b-client"  x="1372" y="708" width="16" height="14"/><text class="note" x="1396" y="719">Client account</text>
+  </g>
+
+  <text class="note" x="40" y="1128">Architecture diagram only — no application code changes. Editable SVG (grouped shapes + CSS classes).</text>
+</svg>
