@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -83,7 +84,7 @@ export default function PipelineRunsModal({ pipelineName, open, onClose }: Props
   const { data: runs, isLoading } = useQuery<PipelineRun[]>({
     queryKey: ["pipeline-history", pipelineName],
     queryFn: async () => {
-      const res = await fetch(`/api/pipelines/history/${pipelineName}`);
+      const res = await apiFetch(`/api/pipelines/history/${pipelineName}`);
       if (!res.ok) throw new Error("Failed to load pipeline history");
       return res.json();
     },

@@ -35,7 +35,7 @@ def kpis() -> OverviewKpis:
         log.error("Glue service failed: %s", exc)
         # Return empty data if Glue fails
         jobs = []
-        live = LiveStatus(success=0, failed=0, timedOut=0, delayed=0, waitingUpstream=0)
+        live = LiveStatus(running=0, failed=0, timedOut=0, delayed=0, waitingUpstream=0)
         failed_recent = []
     
     if jira_service:

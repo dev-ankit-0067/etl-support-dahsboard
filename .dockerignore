@@ -1,0 +1,17 @@
+# Build context trimming for the deploy image.
+**/node_modules
+**/dist
+.git
+.venv
+bin
+include
+pyvenv.cfg
+lib/python3.12
+lib/python3.*
+logs
+*.log
+# Never ship secrets into the image — the deploy script reads .env from disk.
+**/.env
+aws-backend/.env
+attached_assets
+docs

@@ -16,6 +16,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { apiFetch } from "@/lib/api";
 
 interface LogEvent {
   timestamp: string;
@@ -77,7 +78,7 @@ export default function CloudWatchLogViewer({
         resourceType === "lambda"
           ? `/api/logs/lambda/${jobName}`
           : `/api/logs/job/${jobId}`;
-      const res = await fetch(endpoint);
+      const res = await apiFetch(endpoint);
       if (!res.ok) throw new Error("Failed to load logs");
       return res.json();
     },
@@ -117,7 +118,7 @@ export default function CloudWatchLogViewer({
     try {
       // Point at the agentic workflow: the LangChain agent fetches the
       // CloudWatch logs itself from the identifier and returns the analysis.
-      const response = await fetch("/api/agents/analyze", {
+      const response = await apiFetch("/api/agents/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ log_id: agentLogId, type: "log", resource_type: resourceType }),
@@ -150,7 +151,7 @@ export default function CloudWatchLogViewer({
     try {
       // Agentic workflow: the LangChain agent fetches the logs, analyses them,
       // and creates the Jira ticket itself, returning the analysis + ticket key.
-      const response = await fetch("/api/agents/analyze", {
+      const response = await apiFetch("/api/agents/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ log_id: agentLogId, type: "jira", resource_type: resourceType }),

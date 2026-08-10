@@ -9,6 +9,8 @@ import {
   LayoutDashboard,
   DollarSign,
   FolderKanban,
+  LogOut,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,10 +22,12 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useAccount } from "@/contexts/AccountContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { account, accounts, setAccountId } = useAccount();
+  const { user, authRequired, logout } = useAuth();
 
   const navItems = [
     { name: "Executive Overview", path: "/", icon: LayoutDashboard },
@@ -131,6 +135,24 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <Settings className="h-4 w-4" />
             </Button>
+            {authRequired && (
+              <div className="flex items-center gap-2 border-l pl-3">
+                <span className="hidden sm:flex items-center gap-1.5 text-xs text-slate-600">
+                  <User className="h-3.5 w-3.5 text-slate-400" />
+                  {user?.email || user?.username || "Signed in"}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs text-slate-600"
+                  onClick={logout}
+                  title="Sign out"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden md:inline">Sign out</span>
+                </Button>
+              </div>
+            )}
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">

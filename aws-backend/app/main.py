@@ -4,14 +4,15 @@ from __future__ import annotations
 import logging
 
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import __version__
+from .auth import require_auth
 from .config import get_settings
 from .logging_config import configure_logging
-from .routers import agents, cloudwatch, costs, health, incidents, lambdas, overview, pipelines, rca
+from .routers import agents, cloudwatch, costs, health, incidents, lambdas, meta, overview, pipelines, rca
 
 log = logging.getLogger(__name__)
 
@@ -37,9 +38,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Health endpoints are registered at the root, all others under /api.
+    # Health (root) and /config (meta) are public; everything else requires a
+    # valid Cognito token when auth is configured.
     app.include_router(health.router)
-    api_routers = [
+    app.include_router(meta.router, prefix=settings.api_prefix)
+    protected_routers = [
         overview.router,
         pipelines.router,
         lambdas.router,
@@ -49,8 +52,8 @@ def create_app() -> FastAPI:
         cloudwatch.router,
         agents.router,
     ]
-    for r in api_routers:
-        app.include_router(r, prefix=settings.api_prefix)
+    for r in protected_routers:
+        app.include_router(r, prefix=settings.api_prefix, dependencies=[Depends(require_auth)])
 
     @app.exception_handler(ClientError)
     async def _client_error(_: Request, exc: ClientError) -> JSONResponse:

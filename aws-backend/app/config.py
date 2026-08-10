@@ -89,6 +89,11 @@ class Settings(BaseSettings):
         description="Map Jira priority to severity"
     )
 
+    # ---- Cognito (auth) ----
+    cognito_user_pool_id: Optional[str] = Field(default=None, description="Cognito User Pool ID for login.")
+    cognito_client_id: Optional[str] = Field(default=None, description="Cognito app client ID (public SPA client).")
+    cognito_region: Optional[str] = Field(default=None, description="Cognito region (defaults to aws_region).")
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGetCostKpis } from "@workspace/api-client-react";
 import { useAccount } from "@/contexts/AccountContext";
+import { apiFetch } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -44,7 +45,7 @@ export default function Costs() {
 
   useEffect(() => {
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-    fetch(`${base}/api/costs/service-trend`)
+    apiFetch(`${base}/api/costs/service-trend`)
       .then((r) => r.json())
       .then((d: ServiceTrendData) => setServiceTrend(d))
       .catch(() => setServiceTrend(null));

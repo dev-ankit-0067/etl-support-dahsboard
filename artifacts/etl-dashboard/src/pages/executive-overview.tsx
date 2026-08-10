@@ -5,6 +5,7 @@ import {
   useGetPipelineRuns,
 } from "@workspace/api-client-react";
 import { useAccount } from "@/contexts/AccountContext";
+import { apiFetch } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -166,7 +167,7 @@ function JobHistorySubsection({ jobName, onAnalyzeLogs, onGetRca, onLogJiraTicke
     queryKey: ["pipeline-history", jobName],
     queryFn: async () => {
       const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-      const res = await fetch(`${base}/api/pipelines/history/${jobName}`);
+      const res = await apiFetch(`${base}/api/pipelines/history/${jobName}`);
       if (!res.ok) throw new Error("Failed to load");
       return res.json();
     },
@@ -338,7 +339,7 @@ function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJ
     queryKey: ["lambda-history", functionName],
     queryFn: async () => {
       const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-      const res = await fetch(`${base}/api/lambdas/history/${functionName}`);
+      const res = await apiFetch(`${base}/api/lambdas/history/${functionName}`);
       if (!res.ok) throw new Error("Failed to load");
       return res.json();
     },
@@ -528,7 +529,7 @@ export default function ExecutiveOverview() {
     setAnalysisLoading(true);
     setAnalysisOpen(true);
     try {
-      const res = await fetch(`${base}/api/agents/analyze`, {
+      const res = await apiFetch(`${base}/api/agents/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ log_id: logId, type: mode, resource_type: resource }),
@@ -555,8 +556,8 @@ export default function ExecutiveOverview() {
     if (resourceType !== "lambda") return;
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     Promise.all([
-      fetch(`${base}/api/lambdas/kpis`).then((r) => r.json()),
-      fetch(`${base}/api/lambdas/runs`).then((r) => r.json()),
+      apiFetch(`${base}/api/lambdas/kpis`).then((r) => r.json()),
+      apiFetch(`${base}/api/lambdas/runs`).then((r) => r.json()),
     ])
       .then(([k, r]) => {
         setLambdaKpis(k);

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -107,7 +108,7 @@ export default function RcaDetailModal({ rcaId, open, onClose }: Props) {
   const { data, isLoading } = useQuery<RcaDetail>({
     queryKey: ["rca-detail", rcaId],
     queryFn: async () => {
-      const res = await fetch(`/api/rca/detail/${rcaId}`);
+      const res = await apiFetch(`/api/rca/detail/${rcaId}`);
       if (!res.ok) throw new Error("Failed to load RCA");
       return res.json();
     },
