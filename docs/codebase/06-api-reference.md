@@ -7,15 +7,21 @@ backend). Fields are **camelCase**. "Backend" indicates which implementation ser
 
 Legend: ✅ implemented · 🟡 stub returns `[]` · ⚪ mock-only (not in FastAPI)
 
+> **Auth (FastAPI):** when Cognito is configured, all `/api/*` routes **except `/config`** require a
+> valid `Authorization: Bearer <Cognito ID token>`; missing/invalid tokens get **401**. `/healthz`,
+> `/readyz`, and `/api/config` are always public. See
+> [02-backend-python.md → Authentication](./02-backend-python.md#authentication--appauthpy).
+
 ---
 
-## Health
+## Health & meta (public)
 
 | Method | Path | Backend | Response |
 |--------|------|---------|----------|
 | GET | `/healthz` | FastAPI ✅ | `{ status: "ok", version }` |
 | GET | `/healthz` | Express ✅ | `{ status: "ok" }` (validated via `HealthCheckResponse.parse`; no `version`) |
 | GET | `/readyz` | FastAPI ✅ | `{ status: "ready" }` |
+| GET | `/config` | FastAPI ✅ | `{ cognito: { userPoolId, clientId, region } }` — SPA runtime config (pre-login) |
 
 ---
 
@@ -189,3 +195,4 @@ Cause:** … **Remediation:** …`) that `LogAnalysisModal.parseSections()` rend
 | 502 | `{ error: <code>, message }` | AWS throttling / request limit |
 | 502 | `{ error: "AWSConnectivity", message }` | `BotoCoreError` |
 | 500 | `{ detail: <msg> }` | Jira/agent route failures (FastAPI `HTTPException`) |
+| 401 | `{ detail: "Not authenticated" \| "Invalid or expired token" }` | Missing/invalid Cognito token on a protected route (`WWW-Authenticate: Bearer`) |

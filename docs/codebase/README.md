@@ -39,6 +39,7 @@ live operations, incidents, root-cause analysis (RCA), and cloud cost insights â
 - **Recharts** for charts
 - **wouter** for routing
 - **lucide-react** icons, **sonner** toasts
+- **AWS Cognito** login gate (username/password via `InitiateAuth`, no SDK)
 
 ### Backends
 - **FastAPI** (Python 3.12) â€” `aws-backend`, the real AWS-backed API (Glue, Lambda, CloudWatch, Cost Explorer, Budgets, STS)
@@ -46,6 +47,7 @@ live operations, incidents, root-cause analysis (RCA), and cloud cost insights â
 - **boto3** for AWS access, **cachetools** for TTL caching, **python-json-logger** for structured logs
 - **LangChain** + **HuggingFace Inference** for the AI log-analysis agents
 - **Jira SDK** for incident/RCA data and ticket creation
+- **PyJWT** for Cognito JWT verification on protected `/api/*` routes
 
 ### Shared / tooling
 - **pnpm workspaces** monorepo

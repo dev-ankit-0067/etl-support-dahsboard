@@ -31,12 +31,15 @@ artifacts/etl-dashboard/
     ├── App.tsx                # Providers + router
     ├── index.css              # Tailwind entry + theme tokens
     ├── contexts/
-    │   └── AccountContext.tsx  # Project/account selector state
+    │   ├── AccountContext.tsx  # Project/account selector state
+    │   └── AuthContext.tsx     # Cognito session (login/logout/token)
     ├── hooks/
     │   ├── use-mobile.tsx
     │   └── use-toast.ts
     ├── lib/
-    │   └── utils.ts            # cn() classname helper
+    │   ├── utils.ts            # cn() classname helper
+    │   ├── cognito.ts          # Cognito InitiateAuth login/refresh (no SDK)
+    │   └── api.ts              # apiFetch — token-aware fetch for raw API calls
     ├── pages/                  # Route pages
     │   ├── executive-overview.tsx
     │   ├── incidents.tsx
@@ -44,6 +47,7 @@ artifacts/etl-dashboard/
     │   ├── live-pipelines.tsx  # (not routed in App.tsx)
     │   ├── performance.tsx     # (not routed)
     │   ├── rca.tsx             # (not routed)
+    │   ├── login.tsx           # Cognito sign-in page
     │   └── not-found.tsx
     └── components/
         ├── layout/DashboardLayout.tsx
@@ -74,19 +78,25 @@ Wraps the app in providers and defines routes:
 ```
 <QueryClientProvider>            // one shared React Query client
   <TooltipProvider>
-    <AccountProvider>            // project/account selection context
-      <WouterRouter base={BASE_URL}>
-        <DashboardLayout>        // sidebar + top bars
-          <Switch>
-            <Route "/"          → ExecutiveOverview />
-            <Route "/incidents" → Incidents />
-            <Route "/costs"     → Costs />
-            <Route              → NotFound />
-          </Switch>
-        </DashboardLayout>
-      </WouterRouter>
-      <Toaster />
+    <AuthProvider>               // Cognito session (gates the app)
+      <AccountProvider>          // project/account selection context
+        <WouterRouter base={BASE_URL}>
+          <AppRoutes>            // login gate:
+            <Route "/login" → Login (or Redirect "/" if authed) />
+            <Route          → needLogin ? Redirect "/login"
+                              : <DashboardLayout><Switch>
+                                  "/"          → ExecutiveOverview
+                                  "/incidents" → Incidents
+                                  "/costs"     → Costs
+                                  *            → NotFound />
+          </AppRoutes>
+        </WouterRouter>
+        <Toaster />
 ```
+
+`AppRoutes` reads `useAuth()`: while `loading` it shows a spinner; when auth is required and the user
+isn't signed in, **every route redirects to `/login`**; once authenticated, `/login` redirects back
+to `/`. See [Authentication](#authentication) below.
 
 > Only **three** pages are routed today: Executive Overview, Incidents, Costs. `live-pipelines.tsx`,
 > `performance.tsx`, and `rca.tsx` are implemented but not mounted (they depend on mock-only
@@ -106,6 +116,29 @@ Provides a **project/account selector** that scales displayed figures per busine
 
 `scale` is applied client-side: cost tiles multiply totals by `account.scale`; incident/rows lists
 are sliced proportionally. This simulates per-project drill-down over a single shared dataset.
+
+## Authentication
+
+Cognito-backed login gating the whole app. No AWS SDK/Amplify dependency — auth talks to Cognito's
+public endpoint directly.
+
+- **`lib/cognito.ts`** — minimal Cognito client: `passwordLogin(cfg, user, pass)` (POST
+  `InitiateAuth` with `USER_PASSWORD_AUTH`), `refreshTokens(cfg, refreshToken)` (`REFRESH_TOKEN_AUTH`),
+  and `decodeJwt(token)`. Returns `{ idToken, accessToken, refreshToken, expiresAt }`.
+- **`contexts/AuthContext.tsx`** — the session:
+  - On mount, fetches `/api/config` to learn the pool/client/region; `authRequired` is true only when
+    those are present (so **local dev without Cognito runs open**).
+  - Restores tokens from `localStorage`, refreshing on load if expired.
+  - Exposes `{ loading, authRequired, isAuthenticated, user, login, logout }`. On token change it
+    registers the ID token with **both** API layers: `setAuthTokenGetter` (generated client) and
+    `setApiToken` (raw `apiFetch`).
+- **`pages/login.tsx`** — the `Login` component: branded card (ShieldCheck), username/password form,
+  error banner, and a submit that calls `useAuth().login(...)`. On success the router auto-redirects.
+- **`App.tsx`** — `AppRoutes` enforces the gate (see App shell above).
+- **`components/layout/DashboardLayout.tsx`** — header shows the signed-in user + a **Sign out**
+  button (only when `authRequired`).
+
+Default login (provisioned by `deploy/setup-cognito.sh`): **`admin` / `OpsG@123`**.
 
 ## Hooks
 - `hooks/use-mobile.tsx` — `useIsMobile()` via a `matchMedia` breakpoint listener.
@@ -252,8 +285,11 @@ throughout for conditional classNames.
 
 ## Data-fetching conventions
 - **Contract endpoints** → generated hooks from `@workspace/api-client-react`
-  (`useGet<Operation>()`), which call `customFetch` against `/api`.
+  (`useGet<Operation>()`), which call `customFetch` against `/api`. The Cognito ID token is attached
+  via `setAuthTokenGetter` (set by `AuthContext`).
 - **Non-contract endpoints** (`/costs/service-trend`, `/pipelines/history/*`, `/lambdas/*`,
-  `/agent/*`) → direct `fetch`/React Query, because they are not in the OpenAPI spec.
+  `/agents/analyze`, `/logs/*`, `/rca/detail/*`) → **`apiFetch`** from `lib/api.ts` (React Query),
+  which adds the same `Authorization: Bearer` header. The only plain `fetch` calls left are the
+  public `/api/config` (in `AuthContext`) and the direct calls to Cognito (`lib/cognito.ts`).
 - `import.meta.env.BASE_URL` is stripped of a trailing slash and prefixed to raw fetch URLs so the
   app works under a sub-path base.

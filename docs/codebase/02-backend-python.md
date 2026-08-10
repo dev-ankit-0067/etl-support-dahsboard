@@ -16,6 +16,7 @@ dashboard's contracts.
 | Logging | python-json-logger 2.0 |
 | Incidents | `jira` 3.10 |
 | AI agents | huggingface_hub, langchain, langchain-huggingface |
+| Auth | `PyJWT[crypto]` — Cognito JWT verification |
 
 ## Directory layout
 
@@ -25,6 +26,7 @@ aws-backend/
 │   ├── __init__.py            # __version__ = "1.0.0"
 │   ├── main.py                # App factory, router wiring, exception handlers
 │   ├── config.py              # Settings (pydantic-settings) + get_settings()
+│   ├── auth.py                # Cognito JWT verification (require_auth dependency)
 │   ├── aws.py                 # Cached boto3 client factory
 │   ├── cache.py               # TTL cache decorator (short/medium/long buckets)
 │   ├── logging_config.py      # Structured JSON logging
@@ -54,9 +56,12 @@ Builds and configures the app:
 3. Adds `CORSMiddleware` with `allow_origins = settings.cors_allow_origins`, methods
    `GET/POST/OPTIONS`, credentials allowed.
 4. Registers routers:
-   - `health.router` at the **root** (`/healthz`, `/readyz`).
-   - All others under `settings.api_prefix` (default `/api`): `overview`, `pipelines`, `lambdas`,
-     `incidents`, `costs`, `rca`, `cloudwatch`, `agents`.
+   - `health.router` at the **root** (`/healthz`, `/readyz`) — public.
+   - `meta.router` under `/api` (`/api/config`) — public (the SPA needs it before login).
+   - The data routers under `settings.api_prefix` (default `/api`) — `overview`, `pipelines`,
+     `lambdas`, `incidents`, `costs`, `rca`, `cloudwatch`, `agents` — each included with
+     `dependencies=[Depends(require_auth)]`, so a valid Cognito token is required when auth is
+     configured (see [Authentication](#authentication--appauthpy)).
    - *(Note: `routers/agent.py` — the `/agent/*` HuggingFace + Jira routes the frontend actually
      calls — exists and is fully implemented but is not auto-included in `main.py`'s list; it is
      the log-text-in / RCA-out variant. `routers/agents.py` — the fully agentic job-ID variant — is
@@ -95,6 +100,9 @@ Loads from environment / `.env` (case-insensitive, extra ignored). Groups:
   `use_jira_incidents=True`, `jira_issue_type` (`Bug`), plus `jira_status_mapping` and
   `jira_priority_mapping` dictionaries used to translate Jira states/priorities into the
   dashboard's incident status and P1–P4 severity.
+- **Cognito (auth):** `cognito_user_pool_id`, `cognito_client_id`, `cognito_region` (defaults to
+  `aws_region`). When the pool + client are set, API auth is enforced; when unset, the API runs
+  open (local-dev mode).
 
 ### `get_settings() -> Settings`
 `@lru_cache(maxsize=1)` — a process-wide singleton settings instance.
@@ -141,9 +149,13 @@ Clears root handlers, adds a stdout `StreamHandler` with a `jsonlogger.JsonForma
 Each router is a thin FastAPI `APIRouter` with a prefix and tag. Endpoints below are relative to
 `/api` (except health). Full request/response detail is in [06-api-reference.md](./06-api-reference.md).
 
-### `health.py` — root, tag `health`
+### `health.py` — root, tag `health` (public)
 - `GET /healthz` → `{status: "ok", version}`
 - `GET /readyz` → `{status: "ready"}`
+
+### `meta.py` — `/config`, tag `meta` (public)
+- `GET /config` → `{ cognito: { userPoolId, clientId, region } }` — runtime config the SPA reads
+  before login. Values come from settings; `null` when Cognito isn't configured.
 
 ### `overview.py` — `/overview`, tag `overview`
 Composes Glue + Jira data for the Executive Overview page.
@@ -204,6 +216,24 @@ Log-text-in variant used by `CloudWatchLogViewer`.
   `services/agent.create_jira_issue()`, and constructs the browse URL from `jira_url`.
 
 ---
+
+## Authentication — `app/auth.py`
+
+Cognito JWT verification applied to every protected API route.
+
+- `auth_enabled()` — true when `cognito_user_pool_id` **and** `cognito_client_id` are set.
+- `_jwks_client(region, pool_id)` — `@lru_cache`d `PyJWKClient` for the pool's
+  `.../.well-known/jwks.json` (fetches + caches the signing keys).
+- `_verify(token)` — decodes with `PyJWT` (RS256), validating **signature, expiry, and issuer**;
+  then checks the audience per token type — ID tokens must have `aud == client_id`, access tokens
+  `client_id == client_id` (rejects any other `token_use`).
+- `require_auth(creds=Depends(HTTPBearer(auto_error=False)))` — the FastAPI dependency:
+  - **open mode** (auth not configured) → returns `None`, allowing the request;
+  - otherwise a missing/invalid/expired token → **401** (`WWW-Authenticate: Bearer`); a valid token
+    → returns the decoded claims.
+
+Wired in `main.py` on the eight data routers; `/healthz` and `/api/config` stay public. The SPA
+sends the Cognito **ID token** as the bearer (see [04-frontend.md](./04-frontend.md#authentication)).
 
 ## Services — `app/services/`
 
