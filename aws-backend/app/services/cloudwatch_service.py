@@ -183,3 +183,99 @@ def get_lambda_logs(function_name: str, limit: int = 100) -> dict:
             "events": [],
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+
+def _fetch_group_by_identifier(log_group: str, identifier: str, id_key: str, limit: int) -> dict:
+    """Shared CloudWatch fetch used by EMR: find the streams for an identifier
+    (cluster/step id or job-run id) in a log group and return their events.
+
+    Matches streams by name prefix first; falls back to recent streams whose name
+    contains the identifier (EMR nests it inside the stream path)."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        logs = client("logs")
+        streams = logs.describe_log_streams(
+            logGroupName=log_group,
+            logStreamNamePrefix=identifier,
+            limit=50,
+        ).get("logStreams", [])
+
+        if not streams:
+            recent = logs.describe_log_streams(
+                logGroupName=log_group,
+                orderBy="LastEventTime",
+                descending=True,
+                limit=50,
+            ).get("logStreams", [])
+            streams = [s for s in recent if identifier in s.get("logStreamName", "")]
+
+        if not streams:
+            return {
+                id_key: identifier,
+                "logGroup": log_group,
+                "events": [],
+                "message": "No log streams found for this identifier",
+                "timestamp": now_iso,
+            }
+
+        all_events = []
+        for stream in streams[:20]:
+            try:
+                response = logs.get_log_events(
+                    logGroupName=log_group,
+                    logStreamName=stream["logStreamName"],
+                    startFromHead=True,
+                )
+                for event in response.get("events", []):
+                    all_events.append({
+                        "timestamp": datetime.fromtimestamp(
+                            event["timestamp"] / 1000, tz=timezone.utc
+                        ).isoformat(),
+                        "message": event["message"],
+                        "stream": stream["logStreamName"],
+                    })
+            except (BotoCoreError, ClientError) as exc:
+                log.warning(f"Failed to fetch EMR logs from stream {stream['logStreamName']}: {exc}")
+                continue
+
+        all_events.sort(key=lambda x: x["timestamp"])
+        all_events = all_events[:limit]
+        return {
+            id_key: identifier,
+            "logGroup": log_group,
+            "events": all_events,
+            "eventCount": len(all_events),
+            "timestamp": now_iso,
+        }
+    except (BotoCoreError, ClientError) as exc:
+        log.error(f"Failed to fetch EMR logs for {identifier}: {exc}")
+        return {id_key: identifier, "logGroup": log_group, "error": str(exc), "events": [], "timestamp": now_iso}
+
+
+@cached("short")
+def get_emr_logs(cluster_id: str, limit: int = 1000) -> dict:
+    """Fetch CloudWatch logs for an EMR-on-EC2 cluster (or step id).
+
+    Reads the configured `emr_log_group`, matching streams by the cluster/step id.
+    """
+    settings = get_settings()
+    log_group = settings.emr_log_group
+    if not log_group:
+        return {
+            "clusterId": cluster_id,
+            "events": [],
+            "message": "EMR log group not configured (set EMR_LOG_GROUP).",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    return _fetch_group_by_identifier(log_group, cluster_id, "clusterId", limit)
+
+
+@cached("short")
+def get_emr_serverless_logs(job_run_id: str, limit: int = 1000) -> dict:
+    """Fetch CloudWatch logs for an EMR Serverless job run.
+
+    Reads `emr_serverless_log_group` (default /aws/emr-serverless), matching streams
+    by the job-run id (or an application/job path prefix).
+    """
+    settings = get_settings()
+    return _fetch_group_by_identifier(settings.emr_serverless_log_group, job_run_id, "jobRunId", limit)

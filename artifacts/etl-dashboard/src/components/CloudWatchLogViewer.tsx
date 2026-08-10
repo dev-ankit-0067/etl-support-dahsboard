@@ -41,13 +41,22 @@ interface AgentAnalyzeResponse {
   jira_key?: string | null;
 }
 
+type ResourceType = "job" | "lambda" | "emr" | "emr_serverless";
+
 interface Props {
   jobId: string | null;
   jobName: string | null;
-  resourceType: "job" | "lambda";
+  resourceType: ResourceType;
   open: boolean;
   onClose: () => void;
 }
+
+const RESOURCE_LABEL: Record<ResourceType, string> = {
+  job: "- Glue Job",
+  lambda: "- Lambda",
+  emr: "- EMR",
+  emr_serverless: "- EMR Serverless",
+};
 
 export default function CloudWatchLogViewer({
   jobId,
@@ -77,7 +86,11 @@ export default function CloudWatchLogViewer({
       const endpoint =
         resourceType === "lambda"
           ? `/api/logs/lambda/${jobName}`
-          : `/api/logs/job/${jobId}`;
+          : resourceType === "emr"
+            ? `/api/logs/emr/${jobId}`
+            : resourceType === "emr_serverless"
+              ? `/api/logs/emr-serverless/${jobId}`
+              : `/api/logs/job/${jobId}`;
       const res = await apiFetch(endpoint);
       if (!res.ok) throw new Error("Failed to load logs");
       return res.json();
@@ -192,7 +205,7 @@ export default function CloudWatchLogViewer({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ScrollText className="h-5 w-5" />
-            CloudWatch Logs {resourceType === "lambda" ? "- Lambda" : "- Glue Job"}
+            CloudWatch Logs {RESOURCE_LABEL[resourceType]}
           </DialogTitle>
           <p className="text-xs text-muted-foreground mt-2">
             {jobName || jobId}

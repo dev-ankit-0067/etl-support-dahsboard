@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { notifyUnauthorized } from "@/lib/api";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -13,7 +14,14 @@ import Login from "@/pages/login";
 import { AccountProvider } from "@/contexts/AccountContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  // Any 401 from a generated hook → clear the session and redirect to login.
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if ((error as { status?: number })?.status === 401) notifyUnauthorized();
+    },
+  }),
+});
 
 function Redirect({ to }: { to: string }) {
   const [, navigate] = useLocation();

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 class AgentRequest(BaseModel):
     log_id: str = Field(
         ...,
-        description="Resource identifier whose CloudWatch logs to analyse — a Glue job run ID, or a Lambda function name when resource_type=lambda.",
+        description="Resource identifier whose CloudWatch logs to analyse — see resource_type for how it is interpreted.",
     )
     type: Literal["log", "jira"] = Field(
         ...,
@@ -26,9 +26,12 @@ class AgentRequest(BaseModel):
             "jira — analyse logs AND create a Jira ticket; returns analysis + ticket key."
         ),
     )
-    resource_type: Literal["job", "lambda"] = Field(
+    resource_type: Literal["job", "lambda", "emr", "emr_serverless"] = Field(
         "job",
-        description="job — log_id is a Glue job run ID (default). lambda — log_id is a Lambda function name.",
+        description=(
+            "job — Glue job run ID (default). lambda — Lambda function name. "
+            "emr — EMR-on-EC2 cluster/step id. emr_serverless — EMR Serverless job run id."
+        ),
     )
 
 

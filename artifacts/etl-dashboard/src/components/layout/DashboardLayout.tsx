@@ -102,19 +102,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         <header className="flex h-14 items-center gap-3 border-b bg-white px-4 lg:px-6">
           <div className="flex flex-1 items-center gap-3 min-w-0">
-            <div className="flex items-center gap-2 text-sm text-slate-500 shrink-0">
-              <span className="whitespace-nowrap">Environment:</span>
-              <Select defaultValue="prod">
-                <SelectTrigger className="h-8 w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="prod">Production</SelectItem>
-                  <SelectItem value="staging">Staging</SelectItem>
-                  <SelectItem value="dev">Development</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="w-full max-w-sm hidden md:flex items-center relative ml-auto">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
               <Input

@@ -104,6 +104,18 @@ Resources:
                 Effect: Allow
                 Action: [lambda:ListFunctions, lambda:GetFunction, lambda:ListTags]
                 Resource: "*"
+              - Sid: EmrRead
+                Effect: Allow
+                Action:
+                  - elasticmapreduce:ListClusters
+                  - elasticmapreduce:DescribeCluster
+                  - elasticmapreduce:ListSteps
+                  - elasticmapreduce:DescribeStep
+                  - emr-serverless:ListApplications
+                  - emr-serverless:GetApplication
+                  - emr-serverless:ListJobRuns
+                  - emr-serverless:GetJobRun
+                Resource: "*"
               - Sid: CloudWatchRead
                 Effect: Allow
                 Action:

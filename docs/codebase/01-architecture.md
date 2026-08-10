@@ -102,4 +102,4 @@ consumes them directly.
 | Caching | React Query cache + `refetchInterval` | TTL buckets (`cachetools`) short/medium/long | none (static) |
 | Errors | Toasts + error states in modals | Global exception handlers → JSON error envelopes | per-route |
 | CORS | — | `CORSMiddleware` (configurable origins) | `cors()` (open) |
-| Auth | Cognito login gate (`AuthContext`), ID token sent as bearer on every API call | Cognito JWT verified on all `/api/*` except `/config` (`require_auth`) | none |
+| Auth | Cognito login gate (`AuthContext`), ID token as bearer on every call; silent refresh + redirect-to-login on expiry/401 | Cognito JWT verified on all `/api/*` except `/config` (`require_auth`) | none |

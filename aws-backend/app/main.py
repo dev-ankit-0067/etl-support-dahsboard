@@ -12,7 +12,10 @@ from . import __version__
 from .auth import require_auth
 from .config import get_settings
 from .logging_config import configure_logging
-from .routers import agents, cloudwatch, costs, health, incidents, lambdas, meta, overview, pipelines, rca
+from .routers import (
+    agents, cloudwatch, costs, emr, emr_serverless, health, incidents,
+    lambdas, meta, overview, pipelines, rca,
+)
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +49,8 @@ def create_app() -> FastAPI:
         overview.router,
         pipelines.router,
         lambdas.router,
+        emr.router,
+        emr_serverless.router,
         incidents.router,
         costs.router,
         rca.router,

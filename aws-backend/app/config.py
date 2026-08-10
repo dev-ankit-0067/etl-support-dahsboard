@@ -61,6 +61,16 @@ class Settings(BaseSettings):
     )
     sla_breach_minutes: int = 60
 
+    # ---- EMR log groups (CloudWatch) ----
+    emr_log_group: Optional[str] = Field(
+        default=None,
+        description="CloudWatch log group holding EMR-on-EC2 logs (streams keyed by cluster/step id).",
+    )
+    emr_serverless_log_group: str = Field(
+        default="/aws/emr-serverless",
+        description="CloudWatch log group holding EMR Serverless job-run logs.",
+    )
+
     # ---- HuggingFace (LLM agents) ----
     huggingface_api_token: Optional[str] = None
     huggingface_model: str = Field(

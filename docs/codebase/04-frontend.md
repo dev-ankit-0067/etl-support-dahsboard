@@ -138,6 +138,18 @@ public endpoint directly.
 - **`components/layout/DashboardLayout.tsx`** — header shows the signed-in user + a **Sign out**
   button (only when `authRequired`).
 
+### Session expiry → redirect to login
+Two mechanisms clear an expired session (which flips `isAuthenticated` false → the gate redirects to
+`/login`) and show a **"Session expired"** toast:
+
+- **Reactive (any API 401):** `lib/api.ts` `apiFetch` and a global `QueryCache.onError` (in `App.tsx`,
+  checking `error.status === 401`) both call `notifyUnauthorized()` → `AuthContext.expireSession()`.
+- **Proactive (before it breaks):** `AuthContext` schedules a timer ~30s before `expiresAt` that
+  attempts a **silent `refreshTokens`**; on success the session continues seamlessly, on failure (or
+  no refresh token) it expires the session and redirects.
+
+Duplicate 401s are de-duped via a `tokensRef` guard; a manual **Sign out** stays silent (no toast).
+
 Default login (provisioned by `deploy/setup-cognito.sh`): **`admin` / `OpsG@123`**.
 
 ## Hooks
@@ -151,18 +163,29 @@ The chrome shared by every page:
   `/incidents`, `Cost Insights` `/costs`) using wouter `Link`; active item highlighted via
   `useLocation()`.
 - **Top project bar** — centered `Projects:` `Select` bound to `AccountContext`.
-- **Header** — Environment selector (Production/Staging/Development — display only), a search input,
-  a "Last refreshed" indicator, and bell/settings icon buttons.
+- **Header** — a search input, a "Last refreshed" indicator, bell/settings icon buttons, and (when
+  auth is required) the signed-in user + a **Sign out** button.
 - **Main** — scrollable content area rendering `{children}`.
 
 ## Pages
 
 ### `executive-overview.tsx` (~1000 lines — the richest page)
-Data: `useGetOverviewKpis()`, `useGetPipelineRuns()`, plus raw `fetch` to
-`/api/pipelines/history/:job` and `/api/lambdas/*`.
+A **resource-type dropdown** switches the KPI tiles + runs table between four AWS compute types:
+**Glue** (default), **Lambda**, **EMR**, **EMR Serverless**. Glue uses `useGetPipelineRuns()`; the
+other three load `/api/{lambdas|emr|emr-serverless}/runs` on demand. A `RESOURCE_CONFIG` map drives
+the per-type labels/endpoints, `AGENT_RESOURCE` maps the UI type → backend `resource_type`
+(`glue`→`job`), and runs are normalised to a common `{id, name, status, …}` shape so one code path
+renders all four. Each row expands to a history subsection (`/api/{…}/history/:name`) whose
+**Analyze logs / RCA / Log Jira ticket** buttons open the log viewer / agentic flow with the right
+`resource_type`. Changing the resource dropdown (or the date range) shows a **blocking loading
+overlay** (`resourceLoading`) covering the whole page until data is ready — real for a resource
+switch (awaits the `/runs` fetch), and a brief ~400ms overlay for the client-side date-range filter.
 
-Local types: `JobRun`, `LambdaRun`, `LambdaKpis`, `RunHistoryItem`. Constants:
-`DATE_MULTIPLIERS`. Helpers: `statusBadge(status)` (Tailwind badge classes per status),
+Data: `useGetOverviewKpis()`, `useGetPipelineRuns()`, plus `apiFetch` to `/api/{lambdas|emr|
+emr-serverless}/runs` and `/api/{pipelines|lambdas|emr|emr-serverless}/history/:name`.
+
+Local types: `JobRun`, `LambdaRun`, `RunHistoryItem`, `ResType`, `ResourceRun`. Constants:
+`DATE_MULTIPLIERS`, `RESOURCE_CONFIG`, `AGENT_RESOURCE`. Helpers: `statusBadge(status)`,
 `fmtTime(iso)`, `fmtMs(ms)`, `filterRunsByDateRange(runs, range)` (client-side date filter for
 today/7d/30d/60d/90d).
 
@@ -240,9 +263,10 @@ Simple 404 card.
 
 ### `CloudWatchLogViewer.tsx`
 A `Dialog` that streams CloudWatch logs and offers AI actions.
-- Props: `{ jobId, jobName, resourceType: "job"|"lambda", open, onClose }`.
-- React Query fetches `/api/logs/lambda/:name` or `/api/logs/job/:id` with **`refetchInterval:
-  5000`** (auto-refresh). Resets AI state whenever it opens.
+- Props: `{ jobId, jobName, resourceType: "job"|"lambda"|"emr"|"emr_serverless", open, onClose }`.
+- React Query fetches the matching endpoint — `/api/logs/{job|lambda|emr|emr-serverless}/…` — with
+  **`refetchInterval: 5000`** (auto-refresh). Resets AI state whenever it opens. The `RESOURCE_LABEL`
+  map drives the dialog title; `agentLogId` is the Lambda function name for `lambda`, else the id.
 - Actions: **Copy** / **Download** logs; **RCA Analysis** → `POST /api/agents/analyze`
   `{ log_id: jobId, type: "log" }`; **Log Jira ticket** → `POST /api/agents/analyze`
   `{ log_id: jobId, type: "jira" }`. Both call the **agentic LangChain workflow** (the agent fetches

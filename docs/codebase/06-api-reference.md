@@ -72,6 +72,19 @@ errorMessage?`
 | GET | `/lambdas/cost-breakdown` | Express ⚪ | cost breakdown |
 | GET | `/lambdas/cost-performance` | Express ⚪ | cost vs perf |
 
+## EMR (on-EC2) & EMR Serverless
+
+| Method | Path | Backend | Response type |
+|--------|------|---------|---------------|
+| GET | `/emr/runs` | FastAPI ✅ | `PipelineRun[]` — one row per **EMR cluster** (id = cluster id) |
+| GET | `/emr/history/{cluster}` | FastAPI ✅ | `PipelineHistoryItem[]` — the cluster's **steps** (id = cluster id, for log lookups) |
+| GET | `/emr-serverless/runs` | FastAPI ✅ | `PipelineRun[]` — one row per **application** (id = app id, status from latest job run) |
+| GET | `/emr-serverless/history/{application}` | FastAPI ✅ | `PipelineHistoryItem[]` — the app's **job runs** (id = job run id) |
+
+Reuse the `PipelineRun` / `PipelineHistoryItem` shapes. `cluster` / `application` accept the id or the
+name. Needs EMR/EMR-Serverless read IAM (`elasticmapreduce:*`, `emr-serverless:*` — see
+`aws-backend/iam-policy.json`). Cost is not exposed by these APIs, so `costPerRun`/`cost` are `0`.
+
 **`LambdaKpis`** — `totalFunctions, healthy, withErrors, throttled, avgDurationMs,
 coldStartsPercent, totalInvocations24h`
 **`LambdaInvocation`** — `id, functionName, status, startTime, endTime, duration, costPerRun`
@@ -151,6 +164,11 @@ FastAPI)
 |--------|------|-------|----------|
 | GET | `/logs/job/{job_id}` | `limit` 1–1000 (100) | `{ jobId, logGroup, events[], eventCount, timestamp }` |
 | GET | `/logs/lambda/{function_name}` | `limit` 1–1000 (100) | `{ functionName, logGroup, events[], eventCount, timestamp }` |
+| GET | `/logs/emr/{cluster_id}` | `limit` 1–1000 (100) | `{ clusterId, logGroup, events[], eventCount, timestamp }` (EMR-on-EC2) |
+| GET | `/logs/emr-serverless/{job_run_id}` | `limit` 1–1000 (100) | `{ jobRunId, logGroup, events[], eventCount, timestamp }` (EMR Serverless) |
+
+EMR logs are read from CloudWatch (`emr_log_group` / `emr_serverless_log_group`); if the group isn't
+configured/found the response carries a `message` and empty `events`.
 
 Each `event` = `{ timestamp, message, stream }`. Errors return an `{ …, error, events: [] }` envelope.
 (The Express mock also implements `/logs/job/:jobId` and `/logs/lambda/:functionName`.)
@@ -174,10 +192,11 @@ Response `JiraTicketResponse` — `issueKey, issueUrl?, summary?`.
 ### Fully-agentic variant — `routers/agents.py`  (wired into `main.py`; used by every AI button in the UI)
 
 **`POST /agents/analyze`**
-Request `AgentRequest` — `log_id` (Glue job run ID, or Lambda function name when
-`resource_type="lambda"`), `type: "log"|"jira"`, `resource_type: "job"|"lambda"` (default `"job"`).
+Request `AgentRequest` — `log_id` (identifier interpreted per `resource_type`), `type: "log"|"jira"`,
+`resource_type: "job"|"lambda"|"emr"|"emr_serverless"` (default `"job"`). The `log_id` is a Glue run
+id / Lambda function name / EMR cluster (or step) id / EMR Serverless job run id respectively.
 Response `AgentResponse` — `log_id, type, analysis, jira_key?`.
-- `type="log"` → fetch logs (Glue **or** Lambda per `resource_type`) → LLM analysis.
+- `type="log"` → fetch logs (per `resource_type`) → LLM analysis.
 - `type="jira"` → fetch logs → LLM analysis → create Jira ticket → return analysis + key.
 
 The `analysis` string follows the structured format (`**Summary:** … **Severity:** … **Root

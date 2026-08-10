@@ -92,6 +92,8 @@ Loads from environment / `.env` (case-insensitive, extra ignored). Groups:
   `cache_maxsize=1024` (seconds).
 - **Domain filters:** `glue_job_name_filter`, `lambda_function_tag_key`/`value`,
   `cost_explorer_tag_key` (`CostCenter`), `sla_breach_minutes=60`.
+- **EMR log groups:** `emr_log_group` (EMR-on-EC2, no default), `emr_serverless_log_group`
+  (default `/aws/emr-serverless`).
 - **HuggingFace (LLM):** `huggingface_api_token`, `huggingface_model`
   (`Qwen/Qwen2.5-72B-Instruct`, used by the agentic tool-calling agent) and
   `huggingface_model_name` (`meta-llama/Llama-3.1-8B-Instruct`, used by the log-text analysis
@@ -178,6 +180,15 @@ Composes Glue + Jira data for the Executive Overview page.
 - `GET /lambdas/kpis` → `LambdaKpis`
 - `GET /lambdas/runs` → `List[LambdaInvocation]`
 
+### `emr.py` — `/emr`, tag `emr`
+- `GET /emr/runs` → `List[PipelineRun]` (clusters) · `GET /emr/history/{cluster}` →
+  `List[PipelineHistoryItem]` (steps). Backed by `emr_service`.
+
+### `emr_serverless.py` — `/emr-serverless`, tag `emr-serverless`
+- `GET /emr-serverless/runs` → `List[PipelineRun]` (applications) ·
+  `GET /emr-serverless/history/{application}` → `List[PipelineHistoryItem]` (job runs). Backed by
+  `emr_serverless_service`.
+
 ### `incidents.py` — `/incidents`, tag `incidents`
 Backed by Jira (import guarded — if `jira_service` import fails the routes 500 cleanly).
 - `GET /incidents/summary` → `IncidentSummary`
@@ -197,8 +208,10 @@ Jira-backed (guarded import).
 - `GET /rca/repeat-incidents` → `List[RepeatIncident]`
 
 ### `cloudwatch.py` — `/logs`, tag `logs`
-- `GET /logs/job/{job_id}?limit=1..1000` → job log events
-- `GET /logs/lambda/{function_name}?limit=1..1000` → lambda log events
+- `GET /logs/job/{job_id}?limit=1..1000` → Glue job log events
+- `GET /logs/lambda/{function_name}?limit=1..1000` → Lambda log events
+- `GET /logs/emr/{cluster_id}?limit=1..1000` → EMR-on-EC2 cluster/step log events
+- `GET /logs/emr-serverless/{job_run_id}?limit=1..1000` → EMR Serverless job-run log events
 
 ### `agents.py` — `/agents`, tag `agents`  *(wired into `main.py`)*
 Fully agentic LangChain endpoint.
@@ -288,8 +301,24 @@ start/end timestamps).
 | `performance()` | `CostPerformance` | 7-day and 30-day daily trends + `costRanges` map. |
 | `service_trend()` | `ServiceTrend` | Per-service (Glue, Lambda, combined) daily trends over 7/30/60/90-day windows. |
 
+### `emr_service.py` — EMR-on-EC2 (clusters + steps)
+- `recent_runs()` `@cached("short")` → `List[PipelineRun]`, one per cluster from `emr.list_clusters`
+  (row `id` = cluster id; state mapped to Running/Success/Failed).
+- `history_for(cluster)` `@cached("medium")` → `List[PipelineHistoryItem]` from `emr.list_steps`
+  (resolves cluster name→id; history item `id` = **cluster id**, the identifier used for log lookups).
+
+### `emr_serverless_service.py` — EMR Serverless (applications + job runs)
+- `recent_runs()` `@cached("short")` → `List[PipelineRun]`, one per application from
+  `emr-serverless.list_applications` (status from its latest `list_job_runs`).
+- `history_for(application)` `@cached("medium")` → `List[PipelineHistoryItem]` from `list_job_runs`
+  (history item `id` = **job run id**, used for log lookups).
+
+> These add read IAM (`elasticmapreduce:ListClusters/DescribeCluster/ListSteps/DescribeStep`,
+> `emr-serverless:ListApplications/GetApplication/ListJobRuns/GetJobRun`) — added to
+> `iam-policy.json` and the deploy task role. Cost isn't available from these APIs (`costPerRun` = 0).
+
 ### `cloudwatch_service.py` — CloudWatch Logs
-Fetches raw log events for jobs and Lambdas.
+Fetches raw log events for Glue jobs, Lambdas, and EMR (on-EC2 + Serverless).
 - `_get_log_group_for_job(job_id)` → `"/aws-glue/jobs/output"` (standard Glue output group).
 - `_get_log_group_for_lambda(fn)` → `"/aws/lambda/{fn}"`.
 - `get_job_logs(job_id, limit=1000)` `@cached("short")` — filters streams by `job_id` prefix,
@@ -297,6 +326,18 @@ Fetches raw log events for jobs and Lambdas.
   `error`/`message` envelope). *(Contains `print()` debug statements.)*
 - `get_lambda_logs(function_name, limit=100)` `@cached("short")` — reads the 5 most recent streams,
   returns the same envelope keyed by `functionName`.
+- `_fetch_group_by_identifier(log_group, identifier, id_key, limit)` — shared EMR helper: matches
+  streams by name **prefix** first, then falls back to recent streams whose name **contains** the
+  identifier (EMR nests the id inside the stream path); returns the standard envelope.
+- `get_emr_logs(cluster_id, limit=1000)` `@cached("short")` — reads `settings.emr_log_group`
+  (returns a "not configured" message if unset), keyed by `clusterId`.
+- `get_emr_serverless_logs(job_run_id, limit=1000)` `@cached("short")` — reads
+  `settings.emr_serverless_log_group` (default `/aws/emr-serverless`), keyed by `jobRunId`.
+
+> **CloudWatch-only** by design: EMR logs are read from CloudWatch log groups (like Glue/Lambda), so
+> no EMR/EMR-Serverless API calls and **no new IAM** beyond the existing `logs:DescribeLogStreams` /
+> `logs:GetLogEvents`. Set `EMR_LOG_GROUP` (and optionally `EMR_SERVERLESS_LOG_GROUP`) to point at
+> the groups where your clusters/jobs ship logs.
 
 ### `jira_service.py` — Jira-backed incidents & RCA
 - **`class JiraClient`** — singleton wrapper. `get_client()` lazily builds a `JIRA` client from
@@ -344,11 +385,12 @@ still present but **not registered in `main.py`**, so it is currently unused.
 Surfaced through **`routers/agent.py`** (`POST /agent/analysis`, `POST /agent/jira`).
 
 ### `services/agent_service.py` — tool-calling LangChain agent
-- **Tools:** `@tool fetch_cloudwatch_logs(job_id)` (Glue job runs, wraps
-  `cloudwatch_service.get_job_logs`), `@tool fetch_lambda_logs(function_name)` (Lambda functions,
-  wraps `cloudwatch_service.get_lambda_logs`), and `@tool create_jira_ticket(summary, description,
-  priority)` (wraps `jira_service.create_ticket`). `_log_tool(resource_type)` picks the Glue vs
-  Lambda tool; `_resource_label(resource_type)` labels the identifier in the prompt.
+- **Tools:** `@tool fetch_cloudwatch_logs(job_id)` (Glue), `@tool fetch_lambda_logs(function_name)`
+  (Lambda), `@tool fetch_emr_logs(cluster_id)` (EMR-on-EC2), `@tool
+  fetch_emr_serverless_logs(job_run_id)` (EMR Serverless) — each wrapping the matching
+  `cloudwatch_service` fetch — plus `@tool create_jira_ticket(summary, description, priority)`
+  (wraps `jira_service.create_ticket`). `_log_tool(resource_type)` / `_resource_label(resource_type)`
+  select the tool + prompt label via the `_LOG_TOOLS` / `_RESOURCE_LABELS` maps.
 - `_get_chat_model()` — `ChatHuggingFace(HuggingFaceEndpoint(repo_id=huggingface_model,
   task="conversational", max_new_tokens=4096, temperature=0.1))`.
 - **System prompts:** `_LOG_ANALYSIS_SYSTEM` (structured RCA format with Summary/Severity/Root
@@ -359,7 +401,8 @@ Surfaced through **`routers/agent.py`** (`POST /agent/analysis`, `POST /agent/ji
 - `run_jira_creation_agent(log_id, resource_type="job")` — agent with the logs tool + create-ticket
   tool; extracts the created key from the `ToolMessage` for `create_jira_ticket`; returns
   `{..., type:"jira", analysis, jira_key}`.
-- `resource_type` is `"job"` (Glue run id) or `"lambda"` (Lambda function name).
+- `resource_type` ∈ `"job"` (Glue run id) · `"lambda"` (Lambda function name) · `"emr"` (EMR-on-EC2
+  cluster/step id) · `"emr_serverless"` (EMR Serverless job run id).
 
 Surfaced through **`routers/agents.py`** (`POST /agents/analyze`).
 

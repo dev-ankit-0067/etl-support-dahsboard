@@ -22,9 +22,33 @@ def get_job_logs(job_id: str, limit: int = Query(100, ge=1, le=1000)):
 def get_lambda_logs(function_name: str, limit: int = Query(100, ge=1, le=1000)):
     """
     Fetch CloudWatch logs for a Lambda function.
-    
+
     Args:
         function_name: The Lambda function name
         limit: Maximum number of log events to return (1-1000, default 100)
     """
     return cloudwatch_service.get_lambda_logs(function_name, limit=limit)
+
+
+@router.get("/emr/{cluster_id}")
+def get_emr_logs(cluster_id: str, limit: int = Query(100, ge=1, le=1000)):
+    """
+    Fetch CloudWatch logs for an EMR-on-EC2 cluster or step.
+
+    Args:
+        cluster_id: The EMR cluster id (j-XXXX) or step id
+        limit: Maximum number of log events to return (1-1000, default 100)
+    """
+    return cloudwatch_service.get_emr_logs(cluster_id, limit=limit)
+
+
+@router.get("/emr-serverless/{job_run_id}")
+def get_emr_serverless_logs(job_run_id: str, limit: int = Query(100, ge=1, le=1000)):
+    """
+    Fetch CloudWatch logs for an EMR Serverless job run.
+
+    Args:
+        job_run_id: The EMR Serverless job run id (or application/job path)
+        limit: Maximum number of log events to return (1-1000, default 100)
+    """
+    return cloudwatch_service.get_emr_serverless_logs(job_run_id, limit=limit)

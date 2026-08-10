@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   useGetOverviewKpis,
@@ -38,6 +38,7 @@ import {
   FileText,
   Sparkles,
   TicketPlus,
+  Loader2,
 } from "lucide-react";
 
 interface JobRun {
@@ -83,6 +84,75 @@ const DATE_MULTIPLIERS: Record<string, number> = {
   "60d": 60,
   "90d": 90,
 };
+
+// Resource types selectable in the header dropdown.
+type ResType = "glue" | "lambda" | "emr" | "emr_serverless";
+
+// Maps the UI resource type to the backend agent/log resource_type.
+const AGENT_RESOURCE: Record<ResType, "job" | "lambda" | "emr" | "emr_serverless"> = {
+  glue: "job",
+  lambda: "lambda",
+  emr: "emr",
+  emr_serverless: "emr_serverless",
+};
+
+interface ResourceConfig {
+  label: string;
+  runsUrl: string | null; // null → Glue uses the useGetPipelineRuns hook
+  historyBase: string;
+  desc: string;
+  totalLabel: string;
+  healthyLabel: string;
+  failedLabel: string;
+  totalSubtitle: string;
+  tableTitle: string;
+  nameHeader: string;
+  costHeader: string;
+  emptyNoun: string;
+}
+
+const RESOURCE_CONFIG: Record<ResType, ResourceConfig> = {
+  glue: {
+    label: "Glue", runsUrl: null, historyBase: "/api/pipelines/history",
+    desc: "Glue job health and key performance indicators",
+    totalLabel: "Total Jobs", healthyLabel: "Healthy Jobs", failedLabel: "Failed Jobs",
+    totalSubtitle: "Across all Glue jobs", tableTitle: "Active Jobs",
+    nameHeader: "Job Name", costHeader: "Cost/Run", emptyNoun: "jobs",
+  },
+  lambda: {
+    label: "Lambda", runsUrl: "/api/lambdas/runs", historyBase: "/api/lambdas/history",
+    desc: "Lambda function health and key performance indicators",
+    totalLabel: "Total Functions", healthyLabel: "Healthy Functions", failedLabel: "Functions with Errors",
+    totalSubtitle: "Across all Lambda functions", tableTitle: "Active Invocations",
+    nameHeader: "Function Name", costHeader: "Cost/Invocation", emptyNoun: "invocations",
+  },
+  emr: {
+    label: "EMR", runsUrl: "/api/emr/runs", historyBase: "/api/emr/history",
+    desc: "EMR cluster health and key performance indicators",
+    totalLabel: "Total Clusters", healthyLabel: "Healthy Clusters", failedLabel: "Failed Clusters",
+    totalSubtitle: "Across all EMR clusters", tableTitle: "Active Clusters",
+    nameHeader: "Cluster Name", costHeader: "Cost/Run", emptyNoun: "clusters",
+  },
+  emr_serverless: {
+    label: "EMR Serverless", runsUrl: "/api/emr-serverless/runs", historyBase: "/api/emr-serverless/history",
+    desc: "EMR Serverless health and key performance indicators",
+    totalLabel: "Total Applications", healthyLabel: "Healthy Applications", failedLabel: "Failed Applications",
+    totalSubtitle: "Across all EMR Serverless apps", tableTitle: "Active Applications",
+    nameHeader: "Application Name", costHeader: "Cost/Run", emptyNoun: "applications",
+  },
+};
+
+// Runs returned by the non-Glue endpoints (Lambda uses functionName, EMR uses pipelineName).
+interface ResourceRun {
+  id: string;
+  pipelineName?: string;
+  functionName?: string;
+  status: string;
+  startTime: string;
+  endTime: string;
+  duration: string;
+  costPerRun?: number;
+}
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
@@ -157,17 +227,18 @@ function filterRunsByDateRange<T extends { startTime: string }>(
 
 interface JobHistorySubsectionProps {
   jobName: string;
+  historyBase: string;
   onAnalyzeLogs: (runId: string) => void;
   onGetRca: (runId: string) => void;
   onLogJiraTicket: (runId: string) => void;
 }
 
-function JobHistorySubsection({ jobName, onAnalyzeLogs, onGetRca, onLogJiraTicket }: JobHistorySubsectionProps) {
+function JobHistorySubsection({ jobName, historyBase, onAnalyzeLogs, onGetRca, onLogJiraTicket }: JobHistorySubsectionProps) {
   const { data, isLoading } = useQuery<RunHistoryItem[]>({
-    queryKey: ["pipeline-history", jobName],
+    queryKey: ["run-history", historyBase, jobName],
     queryFn: async () => {
       const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-      const res = await apiFetch(`${base}/api/pipelines/history/${jobName}`);
+      const res = await apiFetch(`${base}${historyBase}/${jobName}`);
       if (!res.ok) throw new Error("Failed to load");
       return res.json();
     },
@@ -504,7 +575,7 @@ export default function ExecutiveOverview() {
   const { account } = useAccount();
   const accountScale = account.scale;
   const [dateRange, setDateRange] = useState("today");
-  const [resourceType, setResourceType] = useState<"job" | "lambda">("job");
+  const [resourceType, setResourceType] = useState<ResType>("glue");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -520,7 +591,7 @@ export default function ExecutiveOverview() {
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-  const callAgentsApi = async (logId: string, mode: "log" | "jira", resource: "job" | "lambda" = "job") => {
+  const callAgentsApi = async (logId: string, mode: "log" | "jira", resource: "job" | "lambda" | "emr" | "emr_serverless" = "job") => {
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     setAnalysisMode(mode);
     setAnalysisLogId(logId);
@@ -549,25 +620,37 @@ export default function ExecutiveOverview() {
     setExpanded(null);
   }, [account.id]);
 
-  const [lambdaKpis, setLambdaKpis] = useState<LambdaKpis | null>(null);
-  const [lambdaRuns, setLambdaRuns] = useState<LambdaRun[]>([]);
+  // Non-Glue resources (Lambda / EMR / EMR Serverless) load their rows from the matching API.
+  const [resourceRuns, setResourceRuns] = useState<ResourceRun[]>([]);
+  // Blocks the page with a loading overlay while a newly-selected resource loads.
+  const [resourceLoading, setResourceLoading] = useState(false);
 
   useEffect(() => {
-    if (resourceType !== "lambda") return;
+    const cfg = RESOURCE_CONFIG[resourceType];
+    if (!cfg.runsUrl) {
+      setResourceRuns([]);
+      setResourceLoading(false);
+      return;
+    }
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-    Promise.all([
-      apiFetch(`${base}/api/lambdas/kpis`).then((r) => r.json()),
-      apiFetch(`${base}/api/lambdas/runs`).then((r) => r.json()),
-    ])
-      .then(([k, r]) => {
-        setLambdaKpis(k);
-        setLambdaRuns(r);
-      })
-      .catch(() => {
-        setLambdaKpis(null);
-        setLambdaRuns([]);
-      });
+    setResourceLoading(true);
+    apiFetch(`${base}${cfg.runsUrl}`)
+      .then((r) => r.json())
+      .then((runs) => setResourceRuns(Array.isArray(runs) ? runs : []))
+      .catch(() => setResourceRuns([]))
+      .finally(() => setResourceLoading(false));
   }, [resourceType]);
+
+  // Date-range changes filter the loaded runs client-side (no fetch), so briefly
+  // show the same blocking overlay for consistent feedback.
+  const dateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleDateRangeChange = (v: string) => {
+    if (v === dateRange) return;
+    setDateRange(v);
+    setResourceLoading(true);
+    if (dateTimer.current) clearTimeout(dateTimer.current);
+    dateTimer.current = setTimeout(() => setResourceLoading(false), 400);
+  };
 
   // Reset expansion when switching resource types
   useEffect(() => {
@@ -581,122 +664,54 @@ export default function ExecutiveOverview() {
       </div>
     );
 
-  const mult = (DATE_MULTIPLIERS[dateRange] ?? 1) * accountScale;
+  const cfg = RESOURCE_CONFIG[resourceType];
+  const isGlue = resourceType === "glue";
   const isLambda = resourceType === "lambda";
 
-  const jobRuns: JobRun[] = (
-    Array.isArray(runs) ? runs : []
-  ) as JobRun[];
+  const jobRuns: JobRun[] = (Array.isArray(runs) ? runs : []) as unknown as JobRun[];
 
-  // Filter runs by date range
-  const filteredJobRuns = filterRunsByDateRange(jobRuns, dateRange);
-  const filteredLambdaRuns = filterRunsByDateRange(lambdaRuns, dateRange);
-
-  // Calculate counts from unique jobs/functions (after grouping)
-  const uniqueResources = isLambda
-    ? new Set(filteredLambdaRuns.map(r => r.functionName)).size
-    : new Set(filteredJobRuns.map(r => r.pipelineName)).size;
-
-  let totalCount: number;
-  let healthyCount: number;
-  let failedCount: number;
-
-  if (uniqueResources === 0) {
-    // No resources in selected period - show 0 in tiles
-    totalCount = 0;
-    healthyCount = 0;
-    failedCount = 0;
-  } else {
-    // Calculate from unique resources for all date ranges
-    totalCount = uniqueResources;
-    // For healthy/failed counts, we need to check the latest run status for each unique resource
-    const latestRuns = isLambda
-      ? (() => {
-          const grouped = filteredLambdaRuns.reduce((acc, run) => {
-            const key = run.functionName;
-            if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
-              acc[key] = run;
-            }
-            return acc;
-          }, {} as Record<string, LambdaRun>);
-          return Object.values(grouped);
-        })()
-      : (() => {
-          const grouped = filteredJobRuns.reduce((acc, run) => {
-            const key = run.pipelineName;
-            if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
-              acc[key] = run;
-            }
-            return acc;
-          }, {} as Record<string, JobRun>);
-          return Object.values(grouped);
-        })();
-
-    healthyCount = latestRuns.filter((r) => r.status === "Success").length;
-    failedCount = latestRuns.filter((r) => r.status === "Failed" || r.status === "Timed Out").length;
-  }
-
-  const totalLabel = isLambda ? "Total Functions" : "Total Jobs";
-  const healthyLabel = isLambda ? "Healthy Functions" : "Healthy Jobs";
-  const failedLabel = isLambda ? "Functions with Errors" : "Failed Jobs";
-  const totalSubtitle = isLambda
-    ? "Across all Lambda functions"
-    : "Across all Glue jobs";
-  const tableTitle = isLambda ? "Active Invocations" : "Active Jobs";
-  const nameHeader = isLambda ? "Function Name" : "Job Name";
-  const costHeader = isLambda ? "Cost/Invocation" : "Cost/Run";
-
-  type Row = {
-    id: string;
-    name: string;
-    status: string;
-    startTime: string;
-    endTime: string;
-    duration: string;
-    cost: number;
-    expandable: boolean;
+  type NormRun = {
+    id: string; name: string; status: string;
+    startTime: string; endTime: string; duration: string; cost: number;
   };
-  const allRows: Row[] = isLambda
-    ? (() => {
-        // Group Lambda runs by function name and keep only the latest run for each
-        const grouped = filteredLambdaRuns.reduce((acc, run) => {
-          const key = run.functionName;
-          if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
-            acc[key] = run;
-          }
-          return acc;
-        }, {} as Record<string, LambdaRun>);
-        return Object.values(grouped).map((r) => ({
-          id: r.id,
-          name: r.functionName,
-          status: r.status,
-          startTime: r.startTime,
-          endTime: r.endTime,
-          duration: r.duration,
-          cost: r.costPerRun,
-          expandable: true,
-        }));
-      })()
-    : (() => {
-        // Group job runs by pipeline name and keep only the latest run for each
-        const grouped = filteredJobRuns.reduce((acc, run) => {
-          const key = run.pipelineName;
-          if (!acc[key] || new Date(run.startTime) > new Date(acc[key].startTime)) {
-            acc[key] = run;
-          }
-          return acc;
-        }, {} as Record<string, JobRun>);
-        return Object.values(grouped).map((r) => ({
-          id: r.id,
-          name: r.pipelineName,
-          status: r.status,
-          startTime: r.startTime,
-          endTime: r.endTime,
-          duration: r.duration,
-          cost: r.costPerRun,
-          expandable: true,
-        }));
-      })();
+  // Normalise the selected resource's runs to a common shape.
+  const normalized: NormRun[] = isGlue
+    ? jobRuns.map((r) => ({
+        id: r.id, name: r.pipelineName, status: r.status,
+        startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun,
+      }))
+    : resourceRuns.map((r) => ({
+        id: r.id, name: r.pipelineName ?? r.functionName ?? r.id, status: r.status,
+        startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun ?? 0,
+      }));
+
+  const filteredRuns = filterRunsByDateRange(normalized, dateRange);
+
+  // Group by resource name, keep the latest run for each.
+  const latestByName: NormRun[] = Object.values(
+    filteredRuns.reduce((acc, run) => {
+      if (!acc[run.name] || new Date(run.startTime) > new Date(acc[run.name].startTime)) {
+        acc[run.name] = run;
+      }
+      return acc;
+    }, {} as Record<string, NormRun>),
+  );
+
+  const totalCount = latestByName.length;
+  const healthyCount = latestByName.filter((r) => r.status === "Success").length;
+  const failedCount = latestByName.filter((r) => r.status === "Failed" || r.status === "Timed Out").length;
+
+  const totalLabel = cfg.totalLabel;
+  const healthyLabel = cfg.healthyLabel;
+  const failedLabel = cfg.failedLabel;
+  const totalSubtitle = cfg.totalSubtitle;
+  const tableTitle = cfg.tableTitle;
+  const nameHeader = cfg.nameHeader;
+  const costHeader = cfg.costHeader;
+
+  type Row = NormRun & { expandable: boolean };
+  const allRows: Row[] = latestByName.map((r) => ({ ...r, expandable: true }));
+
   // Slice rows proportional to selected account so the table reflects the scope
   const rowKeep =
     account.id === "all"
@@ -705,33 +720,46 @@ export default function ExecutiveOverview() {
   const rows: Row[] = allRows.slice(0, rowKeep);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)] gap-3">
+    <div className="relative flex flex-col h-[calc(100vh-7rem)] gap-3">
+      {/* Loading overlay — disables the page while a newly-selected resource loads */}
+      {resourceLoading && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-white/70 backdrop-blur-sm">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Loading {RESOURCE_CONFIG[resourceType].label}…
+          </p>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-xl font-bold tracking-tight">
             Executive Overview
           </h2>
-          <p className="text-xs text-muted-foreground">
-            {isLambda
-              ? "Lambda function health and key performance indicators"
-              : "Job health and key performance indicators"}
-          </p>
+          <p className="text-xs text-muted-foreground">{cfg.desc}</p>
         </div>
         <div className="flex items-center gap-2">
           <Select
             value={resourceType}
-            onValueChange={(v) => setResourceType(v as "job" | "lambda")}
+            onValueChange={(v) => {
+              const next = v as ResType;
+              if (next === resourceType) return;
+              // Show the loading overlay immediately for resources that fetch on switch.
+              if (RESOURCE_CONFIG[next].runsUrl) setResourceLoading(true);
+              setResourceType(next);
+            }}
           >
-            <SelectTrigger className="h-8 w-[130px] text-xs">
+            <SelectTrigger className="h-8 w-[150px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="job">Jobs</SelectItem>
+              <SelectItem value="glue">Glue</SelectItem>
               <SelectItem value="lambda">Lambda</SelectItem>
+              <SelectItem value="emr">EMR</SelectItem>
+              <SelectItem value="emr_serverless">EMR Serverless</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={dateRange} onValueChange={setDateRange}>
+          <Select value={dateRange} onValueChange={handleDateRangeChange}>
             <SelectTrigger className="h-8 w-[130px] text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -864,8 +892,8 @@ export default function ExecutiveOverview() {
                   <TableCell colSpan={7} className="py-8">
                     <div className="flex items-center justify-center text-muted-foreground text-sm">
                       {dateRange === "today"
-                        ? `No ${isLambda ? "invocations" : "jobs"} run today`
-                        : `No ${isLambda ? "invocations" : "jobs"} in selected period`}
+                        ? `No ${cfg.emptyNoun} run today`
+                        : `No ${cfg.emptyNoun} in selected period`}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -954,13 +982,14 @@ export default function ExecutiveOverview() {
                             ) : (
                               <JobHistorySubsection
                                 jobName={row.name}
+                                historyBase={cfg.historyBase}
                                 onAnalyzeLogs={(runId) => {
                                   setSelectedJobId(runId);
                                   setSelectedJobName(row.name);
                                   setLogsModalOpen(true);
                                 }}
-                                onGetRca={(runId) => callAgentsApi(runId, "log", "job")}
-                                onLogJiraTicket={(runId) => callAgentsApi(runId, "jira", "job")}
+                                onGetRca={(runId) => callAgentsApi(runId, "log", AGENT_RESOURCE[resourceType])}
+                                onLogJiraTicket={(runId) => callAgentsApi(runId, "jira", AGENT_RESOURCE[resourceType])}
                               />
                             )}
                           </TableCell>
@@ -979,7 +1008,7 @@ export default function ExecutiveOverview() {
       <CloudWatchLogViewer
         jobId={selectedJobId}
         jobName={selectedJobName}
-        resourceType={resourceType}
+        resourceType={AGENT_RESOURCE[resourceType]}
         open={logsModalOpen}
         onClose={() => {
           setLogsModalOpen(false);
