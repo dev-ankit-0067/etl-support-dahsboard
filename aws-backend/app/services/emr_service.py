@@ -15,6 +15,19 @@ from ..models.emr import EMRCluster, EMRRun, EMRKpis
 log = logging.getLogger(__name__)
 
 
+_EMR_CLASSIC_HOUR_USD = 0.18
+_EMR_SERVERLESS_HOUR_USD = 0.42
+
+
+def _estimate_emr_cost(started: datetime | None, finished: datetime | None, service_type: str) -> float:
+    if not started:
+        return 0.0
+    end_time = finished or datetime.now(timezone.utc)
+    duration_hours = max(0.0, (end_time - started).total_seconds() / 3600.0)
+    rate = _EMR_SERVERLESS_HOUR_USD if service_type == "serverless" else _EMR_CLASSIC_HOUR_USD
+    return round(duration_hours * rate, 2)
+
+
 @cached("medium")
 def list_clusters(states: List[str] | None = None) -> List[EMRCluster]:
     emr = client("emr")
@@ -119,6 +132,7 @@ def recent_serverless_runs(limit_per_application: int = 100) -> List[EMRRun]:
                         endTime=finished.isoformat() if finished else None,
                         duration=_format_run_duration(started, finished),
                         serviceType="serverless",
+                        cost=_estimate_emr_cost(started, finished, "serverless"),
                     )
                 )
 
@@ -154,7 +168,8 @@ def recent_runs(limit_per_cluster: int = 3) -> List[EMRRun]:
                     status=status,
                     startTime=started.isoformat() if started else "",
                     endTime=finished.isoformat() if finished else None,
-                    duration=None,
+                    duration=_format_run_duration(started, finished),
+                    cost=_estimate_emr_cost(started, finished, "classic"),
                 )
             )
 

@@ -72,6 +72,7 @@ interface EMRRun {
   endTime?: string | null;
   duration?: string | null;
   serviceType?: "classic" | "serverless";
+  cost?: number;
 }
 
 interface EMRKpis {
@@ -177,12 +178,13 @@ function filterRunsByDateRange<T extends { startTime: string }>(
 
 interface JobHistorySubsectionProps {
   jobName: string;
+  dateRange: string;
   onAnalyzeLogs: (runId: string) => void;
   onGetRca: (runId: string) => void;
   onLogJiraTicket: (runId: string) => void;
 }
 
-function JobHistorySubsection({ jobName, onAnalyzeLogs, onGetRca, onLogJiraTicket }: JobHistorySubsectionProps) {
+function JobHistorySubsection({ jobName, dateRange, onAnalyzeLogs, onGetRca, onLogJiraTicket }: JobHistorySubsectionProps) {
   const { data, isLoading } = useQuery<RunHistoryItem[]>({
     queryKey: ["pipeline-history", jobName],
     queryFn: async () => {
@@ -201,8 +203,8 @@ function JobHistorySubsection({ jobName, onAnalyzeLogs, onGetRca, onLogJiraTicke
     );
   }
 
-  // Sort by start time descending (most recent first) and take last 5 runs
-  const recentRuns = data
+  // Filter by selected date range, sort by start time descending, and take last 5 runs
+  const recentRuns = filterRunsByDateRange(data, dateRange)
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
     .slice(0, 5);
 
@@ -349,12 +351,13 @@ interface LambdaHistoryItem {
 
 interface LambdaHistorySubsectionProps {
   functionName: string;
+  dateRange: string;
   onAnalyzeLogs: (invocationId: string) => void;
   onGetRca: (invocationId: string) => void;
   onLogJiraTicket: (invocationId: string) => void;
 }
 
-function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJiraTicket }: LambdaHistorySubsectionProps) {
+function LambdaHistorySubsection({ functionName, dateRange, onAnalyzeLogs, onGetRca, onLogJiraTicket }: LambdaHistorySubsectionProps) {
   const { data, isLoading } = useQuery<LambdaHistoryItem[]>({
     queryKey: ["lambda-history", functionName],
     queryFn: async () => {
@@ -373,8 +376,8 @@ function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJ
     );
   }
 
-  // Sort by start time descending (most recent first) and take last 5 runs
-  const recentRuns = data
+  // Filter by selected date range, sort by start time descending, and take last 5 runs
+  const recentRuns = filterRunsByDateRange(data, dateRange)
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
     .slice(0, 5);
 
@@ -518,7 +521,15 @@ function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJ
   );
 }
 
-function EMRHistorySubsection({ clusterId, onAnalyzeLogs, onGetRca, onLogJiraTicket }: { clusterId: string; onAnalyzeLogs: (runId: string) => void; onGetRca: (runId: string) => void; onLogJiraTicket: (runId: string) => void; }) {
+interface EMRHistorySubsectionProps {
+  clusterId: string;
+  dateRange: string;
+  onAnalyzeLogs: (runId: string) => void;
+  onGetRca: (runId: string) => void;
+  onLogJiraTicket: (runId: string) => void;
+}
+
+function EMRHistorySubsection({ clusterId, dateRange, onAnalyzeLogs, onGetRca, onLogJiraTicket }: EMRHistorySubsectionProps) {
   const [recentRuns, setRecentRuns] = useState<EMRRun[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -527,15 +538,17 @@ function EMRHistorySubsection({ clusterId, onAnalyzeLogs, onGetRca, onLogJiraTic
     fetch(`${base}/api/emr/runs`)
       .then((res) => res.json())
       .then((data: EMRRun[]) => {
-        const filtered = (data || [])
-          .filter((run: EMRRun) => run.clusterId === clusterId)
+        const filtered = filterRunsByDateRange(
+          (data || []).filter((run: EMRRun) => run.clusterId === clusterId),
+          dateRange,
+        )
           .sort((a: EMRRun, b: EMRRun) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
           .slice(0, 5);
         setRecentRuns(filtered);
       })
       .catch(() => setRecentRuns([]))
       .finally(() => setLoading(false));
-  }, [clusterId]);
+  }, [clusterId, dateRange]);
 
   if (loading) {
     return (
@@ -543,7 +556,7 @@ function EMRHistorySubsection({ clusterId, onAnalyzeLogs, onGetRca, onLogJiraTic
     );
   }
 
-  const totalCost = 0;
+  const totalCost = recentRuns.reduce((sum, run) => sum + (run.cost ?? 0), 0);
   const success = recentRuns.filter((run: EMRRun) => run.status === "Success").length;
   const successRate = recentRuns.length ? Math.round((success / recentRuns.length) * 100) : 0;
 
@@ -574,7 +587,9 @@ function EMRHistorySubsection({ clusterId, onAnalyzeLogs, onGetRca, onLogJiraTic
               <TableCell>{statusBadge(run.status)}</TableCell>
               <TableCell className="text-xs text-muted-foreground">{new Date(run.startTime).toLocaleString()}</TableCell>
               <TableCell className="text-xs"><span className="flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{run.duration || "—"}</span></TableCell>
-              <TableCell className="text-xs text-right font-mono">—</TableCell>
+              <TableCell className="text-xs text-right font-mono">
+                {run.cost && run.cost > 0 ? `$${run.cost.toFixed(2)}` : "—"}
+              </TableCell>
               <TableCell>
                 <div className="flex items-center justify-center gap-1">
                   <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5" onClick={() => onAnalyzeLogs(run.id)}>
@@ -860,7 +875,7 @@ export default function ExecutiveOverview() {
       startTime: r.startTime,
       endTime: r.endTime || "",
       duration: r.duration || "",
-      cost: 0,
+      cost: r.cost ?? 0,
       expandable: true,
       clusterId: r.clusterId,
       latestJobName: r.name,
@@ -1114,6 +1129,7 @@ export default function ExecutiveOverview() {
                             {isLambda ? (
                               <LambdaHistorySubsection
                                 functionName={row.name}
+                                dateRange={dateRange}
                                 onAnalyzeLogs={(invocationId) => {
                                   setSelectedJobId(invocationId);
                                   setSelectedJobName(row.name);
@@ -1125,6 +1141,7 @@ export default function ExecutiveOverview() {
                             ) : isEmr ? (
                               <EMRHistorySubsection
                                 clusterId={(row as any).clusterId || row.name}
+                                dateRange={dateRange}
                                 onAnalyzeLogs={(runId) => {
                                   setSelectedJobId(runId);
                                   setSelectedJobName(row.name);
@@ -1136,6 +1153,7 @@ export default function ExecutiveOverview() {
                             ) : (
                               <JobHistorySubsection
                                 jobName={row.name}
+                                dateRange={dateRange}
                                 onAnalyzeLogs={(runId) => {
                                   setSelectedJobId(runId);
                                   setSelectedJobName(row.name);

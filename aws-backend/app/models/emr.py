@@ -20,6 +20,7 @@ class EMRRun(BaseModel):
     endTime: Optional[str]
     duration: Optional[str]
     serviceType: str = "classic"
+    cost: float = 0.0
 
 
 class EMRKpis(BaseModel):

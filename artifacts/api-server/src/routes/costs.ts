@@ -127,17 +127,28 @@ router.get("/costs/service-trend", async (_req, res): Promise<void> => {
   const buildRange = (days: number) => {
     const glue = buildSeries(days, 2150, 200, "glue");
     const lambda = buildSeries(days, 1080, 120, "lambda");
+    const emr = buildSeries(days, 420, 85, "emr");
     const all = glue.map((g, i) => ({
       date: g.date,
-      cost: Math.round((g.cost + lambda[i].cost) * 100) / 100,
+      cost: Math.round((g.cost + lambda[i].cost + emr[i].cost) * 100) / 100,
     }));
-    return { glue, lambda, all };
+    return { glue, lambda, emr, all };
   };
 
+  const range7d = buildRange(7);
+  const range30d = buildRange(30);
+  const range60d = buildRange(60);
+  const range90d = buildRange(90);
+
   res.json({
-    "7d": buildRange(7),
-    "30d": buildRange(30),
-    "60d": buildRange(60),
+    ranges_7d: range7d,
+    ranges_30d: range30d,
+    ranges_60d: range60d,
+    ranges_90d: range90d,
+    "7d": range7d,
+    "30d": range30d,
+    "60d": range60d,
+    "90d": range90d,
   });
 });
 

@@ -19,7 +19,7 @@ import {
 type ServiceKey = "all" | "glue" | "lambda" | "emr";
 type RangeKey = "7d" | "30d" | "60d" | "90d";
 interface TrendPoint { date: string; cost: number }
-interface ServiceTrendRange { glue: TrendPoint[]; lambda_: TrendPoint[]; emr: TrendPoint[]; all: TrendPoint[] }
+interface ServiceTrendRange { glue: TrendPoint[]; lambda_?: TrendPoint[]; lambda?: TrendPoint[]; emr: TrendPoint[]; all: TrendPoint[] }
 interface ServiceTrendData {
   ranges_7d: ServiceTrendRange;
   ranges_30d: ServiceTrendRange;
@@ -53,15 +53,24 @@ export default function Costs() {
   const chartData = useMemo(() => {
     if (!serviceTrend) return [];
     const rangeKey = RANGE_KEYS[range];
-    const r = serviceTrend[rangeKey];
+    const r =
+      serviceTrend[rangeKey] ||
+      serviceTrend[range] ||
+      serviceTrend[rangeKey.replace("ranges_", "") as "7d" | "30d" | "60d" | "90d"];
     if (!r) return [];
+    const lambdaTrend = r.lambda_?.length
+      ? r.lambda_
+      : r.lambda?.length
+      ? r.lambda
+      : [];
+    const emrTrend = r.emr?.length ? r.emr : [];
     // Combine into a single array keyed by date so multiple lines can share an axis,
     // scaling each series by the selected AWS account's portion of total spend.
     return r.glue.map((g, i) => ({
       date: g.date,
       glue: Math.round(g.cost * accountScale * 100) / 100,
-      lambda: Math.round((r.lambda_[i]?.cost ?? 0) * accountScale * 100) / 100,
-      emr: Math.round((r.emr[i]?.cost ?? 0) * accountScale * 100) / 100,
+      lambda: Math.round((lambdaTrend[i]?.cost ?? 0) * accountScale * 100) / 100,
+      emr: Math.round((emrTrend[i]?.cost ?? 0) * accountScale * 100) / 100,
       all: Math.round((r.all[i]?.cost ?? 0) * accountScale * 100) / 100,
     }));
   }, [serviceTrend, range, accountScale]);
