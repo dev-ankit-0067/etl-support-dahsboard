@@ -16,10 +16,10 @@ import {
   TrendingDown,
 } from "lucide-react";
 
-type ServiceKey = "all" | "glue" | "lambda";
+type ServiceKey = "all" | "glue" | "lambda" | "emr";
 type RangeKey = "7d" | "30d" | "60d" | "90d";
 interface TrendPoint { date: string; cost: number }
-interface ServiceTrendRange { glue: TrendPoint[]; lambda_: TrendPoint[]; all: TrendPoint[] }
+interface ServiceTrendRange { glue: TrendPoint[]; lambda_?: TrendPoint[]; lambda?: TrendPoint[]; emr: TrendPoint[]; all: TrendPoint[] }
 interface ServiceTrendData {
   ranges_7d: ServiceTrendRange;
   ranges_30d: ServiceTrendRange;
@@ -53,14 +53,24 @@ export default function Costs() {
   const chartData = useMemo(() => {
     if (!serviceTrend) return [];
     const rangeKey = RANGE_KEYS[range];
-    const r = serviceTrend[rangeKey];
+    const r =
+      serviceTrend[rangeKey] ||
+      serviceTrend[range] ||
+      serviceTrend[rangeKey.replace("ranges_", "") as "7d" | "30d" | "60d" | "90d"];
     if (!r) return [];
+    const lambdaTrend = r.lambda_?.length
+      ? r.lambda_
+      : r.lambda?.length
+      ? r.lambda
+      : [];
+    const emrTrend = r.emr?.length ? r.emr : [];
     // Combine into a single array keyed by date so multiple lines can share an axis,
     // scaling each series by the selected AWS account's portion of total spend.
     return r.glue.map((g, i) => ({
       date: g.date,
       glue: Math.round(g.cost * accountScale * 100) / 100,
-      lambda: Math.round((r.lambda_[i]?.cost ?? 0) * accountScale * 100) / 100,
+      lambda: Math.round((lambdaTrend[i]?.cost ?? 0) * accountScale * 100) / 100,
+      emr: Math.round((emrTrend[i]?.cost ?? 0) * accountScale * 100) / 100,
       all: Math.round((r.all[i]?.cost ?? 0) * accountScale * 100) / 100,
     }));
   }, [serviceTrend, range, accountScale]);
@@ -302,6 +312,7 @@ export default function Costs() {
                   <SelectItem value="all">All Services</SelectItem>
                   <SelectItem value="glue">Glue</SelectItem>
                   <SelectItem value="lambda">Lambda</SelectItem>
+                  <SelectItem value="emr">EMR</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={range} onValueChange={(v) => setRange(v as RangeKey)}>
@@ -367,6 +378,17 @@ export default function Costs() {
                     dot={false}
                     activeDot={{ r: 5 }}
                     name="Total"
+                  />
+                )}
+                {(service === "all" || service === "emr") && (
+                  <Line
+                    type="monotone"
+                    dataKey="emr"
+                    stroke="#f97316"
+                    strokeWidth={2.25}
+                    dot={range === "7d" ? { r: 3, fill: "#f97316" } : false}
+                    activeDot={{ r: 5 }}
+                    name="EMR"
                   />
                 )}
               </LineChart>

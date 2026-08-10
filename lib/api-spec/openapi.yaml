@@ -22,6 +22,8 @@ tags:
     description: RCA & prevention
   - name: costs
     description: Cost & financial insights
+  - name: emr
+    description: EMR clusters and jobs
 
 paths:
   /healthz:
@@ -335,6 +337,49 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/OptimizationInsight"
+
+  /emr/kpis:
+    get:
+      operationId: getEmrKpis
+      tags: [emr]
+      summary: EMR cluster KPIs
+      responses:
+        "200":
+          description: EMR KPIs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EMRKpis"
+
+  /emr/clusters:
+    get:
+      operationId: getEmrClusters
+      tags: [emr]
+      summary: List EMR clusters
+      responses:
+        "200":
+          description: EMR clusters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EMRCluster"
+
+  /emr/runs:
+    get:
+      operationId: getEmrRuns
+      tags: [emr]
+      summary: Recent EMR cluster runs
+      responses:
+        "200":
+          description: EMR runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EMRRun"
 
 components:
   schemas:
@@ -882,3 +927,60 @@ components:
         - description
         - estimatedSavings
         - priority
+
+    EMRCluster:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        state:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - state
+        - createdAt
+
+    EMRRun:
+      type: object
+      properties:
+        id:
+          type: string
+        clusterId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+          nullable: true
+        duration:
+          type: string
+          nullable: true
+      required:
+        - id
+        - clusterId
+        - name
+        - status
+        - startTime
+
+    EMRKpis:
+      type: object
+      properties:
+        totalClusters:
+          type: integer
+        activeClusters:
+          type: integer
+        failedClusters:
+          type: integer
+      required:
+        - totalClusters
+        - activeClusters
+        - failedClusters

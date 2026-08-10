@@ -18,6 +18,9 @@ import type {
   CostKpis,
   CostPerformance,
   DurationTrendItem,
+  EMRCluster,
+  EMRKpis,
+  EMRRun,
   FailedJob,
   FailurePattern,
   HealthDistribution,
@@ -1687,6 +1690,227 @@ export function useGetCostOptimization<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetCostOptimizationQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary EMR cluster KPIs
+ */
+export const getGetEmrKpisUrl = () => {
+  return `/api/emr/kpis`;
+};
+
+export const getEmrKpis = async (options?: RequestInit): Promise<EMRKpis> => {
+  return customFetch<EMRKpis>(getGetEmrKpisUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetEmrKpisQueryKey = () => {
+  return [`/api/emr/kpis`] as const;
+};
+
+export const getGetEmrKpisQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmrKpis>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmrKpis>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetEmrKpisQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmrKpis>>> = ({
+    signal,
+  }) => getEmrKpis({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEmrKpis>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEmrKpisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEmrKpis>>
+>;
+export type GetEmrKpisQueryError = ErrorType<unknown>;
+
+/**
+ * @summary EMR cluster KPIs
+ */
+
+export function useGetEmrKpis<
+  TData = Awaited<ReturnType<typeof getEmrKpis>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmrKpis>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEmrKpisQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List EMR clusters
+ */
+export const getGetEmrClustersUrl = () => {
+  return `/api/emr/clusters`;
+};
+
+export const getEmrClusters = async (
+  options?: RequestInit,
+): Promise<EMRCluster[]> => {
+  return customFetch<EMRCluster[]>(getGetEmrClustersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetEmrClustersQueryKey = () => {
+  return [`/api/emr/clusters`] as const;
+};
+
+export const getGetEmrClustersQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmrClusters>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmrClusters>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetEmrClustersQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmrClusters>>> = ({
+    signal,
+  }) => getEmrClusters({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEmrClusters>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEmrClustersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEmrClusters>>
+>;
+export type GetEmrClustersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List EMR clusters
+ */
+
+export function useGetEmrClusters<
+  TData = Awaited<ReturnType<typeof getEmrClusters>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmrClusters>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEmrClustersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Recent EMR cluster runs
+ */
+export const getGetEmrRunsUrl = () => {
+  return `/api/emr/runs`;
+};
+
+export const getEmrRuns = async (options?: RequestInit): Promise<EMRRun[]> => {
+  return customFetch<EMRRun[]>(getGetEmrRunsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetEmrRunsQueryKey = () => {
+  return [`/api/emr/runs`] as const;
+};
+
+export const getGetEmrRunsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmrRuns>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmrRuns>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetEmrRunsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmrRuns>>> = ({
+    signal,
+  }) => getEmrRuns({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEmrRuns>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEmrRunsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEmrRuns>>
+>;
+export type GetEmrRunsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Recent EMR cluster runs
+ */
+
+export function useGetEmrRuns<
+  TData = Awaited<ReturnType<typeof getEmrRuns>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmrRuns>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEmrRunsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

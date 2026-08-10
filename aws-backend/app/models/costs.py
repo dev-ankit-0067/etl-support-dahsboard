@@ -32,11 +32,12 @@ class CostPerformance(BaseModel):
 class ServiceTrendSeries(BaseModel):
     glue: List[CostTrendPoint]
     lambda_: List[CostTrendPoint]  # Using lambda_ to avoid keyword conflict
+    emr: List[CostTrendPoint]
     all: List[CostTrendPoint]
 
     class Config:
         fields = {"lambda_": {"alias": "lambda"}}
-        populate_by_name = True
+        allow_population_by_field_name = True
 
 
 class ServiceTrend(BaseModel):
@@ -44,7 +45,6 @@ class ServiceTrend(BaseModel):
     ranges_30d: ServiceTrendSeries
     ranges_60d: ServiceTrendSeries
     ranges_90d: ServiceTrendSeries
-
     class Config:
         fields = {
             "ranges_7d": {"alias": "7d"},
@@ -52,4 +52,4 @@ class ServiceTrend(BaseModel):
             "ranges_60d": {"alias": "60d"},
             "ranges_90d": {"alias": "90d"},
         }
-        populate_by_name = True
+        allow_population_by_field_name = True

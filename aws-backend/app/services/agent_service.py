@@ -22,13 +22,26 @@ log = logging.getLogger(__name__)
 
 @tool
 def fetch_cloudwatch_logs(job_id: str) -> str:
-    """Fetch CloudWatch logs for a Glue job run ID and return them as plain text."""
-    data = cloudwatch_service.get_job_logs(job_id)
+    """Fetch CloudWatch logs for a Glue job run ID, Lambda function, or EMR Serverless job and return them as plain text."""
+    # Try to determine resource type from ID format
+    # Glue job IDs are UUIDs or hex strings like: b'abc123'
+    # Lambda has function names with hyphens/underscores
+    # EMR Serverless IDs are like: 00g78ofdcse4m00b
+    
+    # First try EMR Serverless format (starts with 00g and is 16 chars)
+    if len(job_id) == 16 and job_id.startswith('00g'):
+        log.info(f"Fetching logs for EMR Serverless job: {job_id}")
+        data = cloudwatch_service.get_emr_serverless_logs(job_id)
+    # Then try Glue (hex strings, usually shorter)
+    else:
+        log.info(f"Fetching logs for Glue job: {job_id}")
+        data = cloudwatch_service.get_job_logs(job_id)
+    
     events = data.get("events", [])
     if not events:
         return (
             f"No log events found for job '{job_id}'. "
-            f"Message: {data.get('message', 'Unknown error')}"
+            f"Message: {data.get('message', data.get('error', 'Unknown error'))}"
         )
     return "\n".join(f"[{e['timestamp']}] {e['message']}" for e in events)
 

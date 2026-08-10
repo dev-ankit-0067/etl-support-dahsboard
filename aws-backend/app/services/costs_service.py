@@ -152,8 +152,8 @@ def performance() -> CostPerformance:
     )
 
 
-def _trend_by_service(days: int, service: str) -> List[CostTrendPoint]:
-    """Fetch cost trend for a specific AWS service."""
+def _trend_by_service(days: int, services: List[str]) -> List[CostTrendPoint]:
+    """Fetch cost trend for a specific AWS service or service group."""
     ce = _ce_client()
     end = _today() + timedelta(days=1)
     start = end - timedelta(days=days)
@@ -165,12 +165,12 @@ def _trend_by_service(days: int, service: str) -> List[CostTrendPoint]:
             Filter={
                 "Dimensions": {
                     "Key": "SERVICE",
-                    "Values": [service],
+                    "Values": services,
                 }
             },
         )
     except (BotoCoreError, ClientError) as exc:
-        log.error("trend_by_service(%d, %s) failed: %s", days, service, exc)
+        log.error("trend_by_service(%d, %s) failed: %s", days, services, exc)
         return []
     out: List[CostTrendPoint] = []
     for r in resp.get("ResultsByTime", []):
@@ -185,21 +185,26 @@ def _trend_by_service(days: int, service: str) -> List[CostTrendPoint]:
 
 @cached("long")
 def service_trend() -> ServiceTrend:
-    """Get cost trends for Glue and Lambda services over 7d, 30d, and 60d windows."""
+    """Get cost trends for Glue, Lambda and EMR services over 7d, 30d, and 60d windows."""
     def build_range(days: int) -> ServiceTrendSeries:
-        glue = _trend_by_service(days, "AWS Glue")
-        lambda_ = _trend_by_service(days, "AWS Lambda")
-        # Combine both services
+        glue = _trend_by_service(days, ["AWS Glue"])
+        lambda_ = _trend_by_service(days, ["AWS Lambda"])
+        emr = _trend_by_service(days, ["Amazon EMR", "Amazon EMR Serverless"])
+        # Combine all service costs
         combined = []
         for i, g in enumerate(glue):
+            total = g.cost
             if i < len(lambda_):
-                combined.append(
-                    CostTrendPoint(
-                        date=g.date,
-                        cost=round(g.cost + lambda_[i].cost, 2),
-                    )
+                total += lambda_[i].cost
+            if i < len(emr):
+                total += emr[i].cost
+            combined.append(
+                CostTrendPoint(
+                    date=g.date,
+                    cost=round(total, 2),
                 )
-        return ServiceTrendSeries(glue=glue, lambda_=lambda_, all=combined)
+            )
+        return ServiceTrendSeries(glue=glue, lambda_=lambda_, emr=emr, all=combined)
 
     return ServiceTrend(
         ranges_7d=build_range(7),

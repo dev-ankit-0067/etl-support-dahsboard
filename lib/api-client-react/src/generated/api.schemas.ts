@@ -225,3 +225,26 @@ export interface OptimizationInsight {
   estimatedSavings: number;
   priority: string;
 }
+
+export interface EMRCluster {
+  id: string;
+  name: string;
+  state: string;
+  createdAt: string;
+}
+
+export interface EMRRun {
+  id: string;
+  clusterId: string;
+  name: string;
+  status: string;
+  startTime: string;
+  endTime?: string | null;
+  duration?: string | null;
+}
+
+export interface EMRKpis {
+  totalClusters: number;
+  activeClusters: number;
+  failedClusters: number;
+}

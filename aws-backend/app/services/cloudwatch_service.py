@@ -21,6 +21,13 @@ def _get_log_group_for_job(job_id: str) -> str:
     return f"/aws-glue/jobs/output"
 
 
+def _get_log_group_for_emr_serverless(job_run_id: str, app_id: str = "") -> str:
+    """Generate CloudWatch log group name for EMR Serverless job run."""
+    # EMR Serverless logs format: /aws-emr-serverless/applications/{applicationId}/jobs/{jobRunId}
+    # But we can search by job run ID prefix in /aws-emr-serverless/
+    return f"/aws-emr-serverless/applications"
+
+
 def _get_log_group_for_lambda(function_name: str) -> str:
     """Generate CloudWatch log group name for a Lambda function."""
     return f"/aws/lambda/{function_name}"
@@ -179,6 +186,148 @@ def get_lambda_logs(function_name: str, limit: int = 100) -> dict:
         log.error(f"Failed to fetch lambda logs for {function_name}: {exc}")
         return {
             "functionName": function_name,
+            "error": str(exc),
+            "events": [],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+@cached("short")
+def get_emr_serverless_logs(job_run_id: str, app_id: str = "", limit: int = 1000) -> dict:
+    """
+    Fetch CloudWatch logs for an EMR Serverless job run.
+    
+    Args:
+        job_run_id: The EMR Serverless job run ID
+        app_id: The application ID (optional, for filtering)
+        limit: Maximum number of log events to return
+    
+    Returns:
+        Dictionary with log events and metadata
+    """
+    try:
+        logs = client("logs")
+
+        # Search for the actual EMR Serverless log group(s) containing this job run.
+        # CloudWatch log groups can be under either:
+        # /aws-emr-serverless/applications/<applicationId>/jobs/<jobRunId>
+        # or /aws/emr-serverless/<applicationId>/jobs/<jobRunId>
+        group_prefixes = [
+            f"/aws-emr-serverless/applications/{app_id}" if app_id else None,
+            "/aws-emr-serverless/applications",
+            "/aws-emr-serverless",
+            f"/aws/emr-serverless/{app_id}" if app_id else None,
+            "/aws/emr-serverless",
+        ]
+
+        all_events = []
+        found_group = None
+
+        for prefix in group_prefixes:
+            if not prefix:
+                continue
+
+            try:
+                response = logs.describe_log_groups(
+                    logGroupNamePrefix=prefix,
+                    limit=50,
+                )
+            except (BotoCoreError, ClientError) as exc:
+                log.warning("Failed to describe log groups for prefix %s: %s", prefix, exc)
+                continue
+
+            groups = response.get("logGroups", [])
+            while response.get("nextToken"):
+                response = logs.describe_log_groups(
+                    logGroupNamePrefix=prefix,
+                    nextToken=response["nextToken"],
+                    limit=50,
+                )
+                groups.extend(response.get("logGroups", []))
+
+            for group in groups:
+                log_group_name = group.get("logGroupName")
+                if not log_group_name:
+                    continue
+
+                try:
+                    # Describe log streams (page through) and filter by job_run_id appearing anywhere
+                    streams = []
+                    resp_streams = logs.describe_log_streams(
+                        logGroupName=log_group_name,
+                        limit=50,
+                    )
+                    streams.extend(resp_streams.get("logStreams", []))
+                    next_token = resp_streams.get("nextToken")
+                    while next_token:
+                        resp_streams = logs.describe_log_streams(
+                            logGroupName=log_group_name,
+                            nextToken=next_token,
+                            limit=50,
+                        )
+                        streams.extend(resp_streams.get("logStreams", []))
+                        next_token = resp_streams.get("nextToken")
+
+                    # Keep only streams whose name contains the job_run_id (CloudWatch stream names often
+                    # embed the application and job path, e.g. /applications/<appId>/jobs/<jobRunId>/...)
+                    streams = [s for s in streams if job_run_id in (s.get("logStreamName") or "")]
+                    log.info("CloudWatch: matching streams in %s for %s: %s", log_group_name, job_run_id, [s.get("logStreamName") for s in streams])
+                except (BotoCoreError, ClientError) as exc:
+                    log.warning("Failed to describe log streams for group %s: %s", log_group_name, exc)
+                    continue
+
+                if not streams:
+                    continue
+
+                found_group = log_group_name
+                for stream in streams:
+                    stream_name = stream.get("logStreamName")
+                    if not stream_name:
+                        continue
+
+                    try:
+                        response = logs.get_log_events(
+                            logGroupName=log_group_name,
+                            logStreamName=stream_name,
+                            limit=limit // max(1, len(streams)) + 20,
+                            startFromHead=False,
+                        )
+
+                        for event in response.get("events", []):
+                            all_events.append({
+                                "timestamp": datetime.fromtimestamp(
+                                    event["timestamp"] / 1000, tz=timezone.utc
+                                ).isoformat(),
+                                "message": event["message"],
+                                "stream": stream_name,
+                            })
+                    except (BotoCoreError, ClientError) as exc:
+                        log.warning("Failed to fetch logs from stream %s/%s: %s", log_group_name, stream_name, exc)
+                        continue
+
+                if all_events:
+                    break
+
+            if all_events:
+                break
+
+        all_events.sort(key=lambda x: x["timestamp"], reverse=True)
+        all_events = all_events[:limit]
+
+        return {
+            "jobRunId": job_run_id,
+            "applicationId": app_id,
+            "logGroup": found_group or "/aws/emr-serverless",
+            "events": all_events,
+            "eventCount": len(all_events),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except (BotoCoreError, ClientError) as exc:
+        log.error(f"Failed to fetch EMR logs for {job_run_id}: {exc}")
+        return {
+            "jobRunId": job_run_id,
+            "applicationId": app_id,
             "error": str(exc),
             "events": [],
             "timestamp": datetime.now(timezone.utc).isoformat(),

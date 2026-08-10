@@ -26,22 +26,28 @@ def _matches_tag(tags: dict) -> bool:
     return tags.get(s.lambda_function_tag_key) == s.lambda_function_tag_value
 
 
+def _needs_tag_filter() -> bool:
+    return bool(get_settings().lambda_function_tag_value)
+
+
 @cached("medium")
 def list_functions() -> List[dict]:
     lam = client("lambda")
     fns: List[dict] = []
+    tag_filter = _needs_tag_filter()
     try:
         paginator = lam.get_paginator("list_functions")
         for page in paginator.paginate():
             for fn in page.get("Functions", []):
-                try:
-                    arn = fn["FunctionArn"]
-                    tags = lam.list_tags(Resource=arn).get("Tags", {}) or {}
-                except (BotoCoreError, ClientError):
-                    tags = {}
-                if not _matches_tag(tags):
-                    continue
-                fn["_tags"] = tags
+                if tag_filter:
+                    try:
+                        arn = fn["FunctionArn"]
+                        tags = lam.list_tags(Resource=arn).get("Tags", {}) or {}
+                    except (BotoCoreError, ClientError):
+                        tags = {}
+                    if not _matches_tag(tags):
+                        continue
+                    fn["_tags"] = tags
                 fns.append(fn)
     except (BotoCoreError, ClientError) as exc:
         log.error("Lambda list_functions failed: %s", exc)
@@ -90,6 +96,75 @@ def _metric_avg(name: str, function_name: str, period_minutes: int = 1440) -> fl
     return sum(d.get("Average", 0.0) for d in pts) / len(pts) if pts else 0.0
 
 
+def _batch_lambda_metrics(function_names: List[str], period_minutes: int = 1440) -> dict[str, dict[str, float]]:
+    cw = client("cloudwatch")
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(minutes=period_minutes)
+    query_metrics = [
+        ("Invocations", "Sum"),
+        ("Errors", "Sum"),
+        ("Throttles", "Sum"),
+        ("Duration", "Average"),
+        ("InitDuration", "Sum"),
+    ]
+
+    results: dict[str, dict[str, float]] = {
+        name: {metric: 0.0 for metric, _ in query_metrics} for name in function_names
+    }
+
+    if not function_names:
+        return results
+
+    queries = []
+    for idx, name in enumerate(function_names):
+        for metric_name, stat in query_metrics:
+            query_id = f"m{idx}_{metric_name.lower()}"
+            queries.append(
+                {
+                    "Id": query_id,
+                    "MetricStat": {
+                        "Metric": {
+                            "Namespace": "AWS/Lambda",
+                            "MetricName": metric_name,
+                            "Dimensions": [{"Name": "FunctionName", "Value": name}],
+                        },
+                        "Period": period_minutes * 60,
+                        "Stat": stat,
+                    },
+                    "ReturnData": True,
+                }
+            )
+
+    try:
+        resp = cw.get_metric_data(
+            MetricDataQueries=queries,
+            StartTime=start,
+            EndTime=end,
+        )
+    except (BotoCoreError, ClientError) as exc:
+        log.warning("CW batch metric data failed: %s", exc)
+        return results
+
+    for data_result in resp.get("MetricDataResults", []):
+        query_id = data_result.get("Id", "")
+        value = float(data_result.get("Values", [0.0])[0]) if data_result.get("Values") else 0.0
+        if not query_id.startswith("m"):
+            continue
+        parts = query_id.split("_", 1)
+        if len(parts) != 2:
+            continue
+        idx_str, metric_name = parts
+        try:
+            idx = int(idx_str[1:])
+            function_name = function_names[idx]
+        except (ValueError, IndexError):
+            continue
+        if function_name in results:
+            results[function_name][metric_name.capitalize()] = value
+
+    return results
+
+
 def _cost_per_invocation(memory_mb: int, avg_duration_ms: float) -> float:
     gb_seconds = (memory_mb / 1024.0) * (avg_duration_ms / 1000.0)
     return round(_PRICE_PER_REQUEST + gb_seconds * _PRICE_PER_GB_SECOND, 6)
@@ -107,13 +182,17 @@ def kpis() -> LambdaKpis:
     cold_total = 0.0
     init_total = 0.0
 
+    function_names = [fn["FunctionName"] for fn in fns]
+    metrics = _batch_lambda_metrics(function_names)
+
     for fn in fns:
         name = fn["FunctionName"]
-        invocations = _metric_sum("Invocations", name)
-        errors = _metric_sum("Errors", name)
-        throttles = _metric_sum("Throttles", name)
-        avg_dur = _metric_avg("Duration", name)
-        init_dur = _metric_sum("InitDuration", name)
+        data = metrics.get(name, {})
+        invocations = data.get("Invocations", 0.0)
+        errors = data.get("Errors", 0.0)
+        throttles = data.get("Throttles", 0.0)
+        avg_dur = data.get("Duration", 0.0)
+        init_dur = data.get("InitDuration", 0.0)
 
         invocations_total += int(invocations)
         throttled_total += int(throttles)
@@ -210,3 +289,49 @@ def recent_invocations(limit: int = 12) -> List[LambdaInvocation]:
             )
         )
     return out
+
+
+@cached("short")
+def lambda_history(function_name: str, limit: int = 20) -> List[dict]:
+    logs = client("logs")
+    lam = client("lambda")
+    try:
+        config = lam.get_function_configuration(FunctionName=function_name)
+        memory = int(config.get("MemorySize", 128))
+    except (BotoCoreError, ClientError) as exc:
+        log.warning("Failed to fetch function config for %s: %s", function_name, exc)
+        memory = 128
+
+    try:
+        streams = logs.describe_log_streams(
+            logGroupName=f"/aws/lambda/{function_name}",
+            orderBy="LastEventTime",
+            descending=True,
+            limit=limit,
+        ).get("logStreams", [])
+    except (BotoCoreError, ClientError) as exc:
+        log.warning("Failed to describe log streams for %s: %s", function_name, exc)
+        return []
+
+    history = []
+    for stream in streams:
+        stream_name = stream.get("logStreamName")
+        first = stream.get("firstEventTimestamp")
+        last = stream.get("lastEventTimestamp")
+        if not stream_name or first is None or last is None:
+            continue
+
+        duration_ms = max(0, int(last - first))
+        history.append(
+            {
+                "id": stream_name,
+                "status": "Success",
+                "startTime": datetime.fromtimestamp(first / 1000, tz=timezone.utc).isoformat(),
+                "durationMs": duration_ms,
+                "cost": _cost_per_invocation(memory, float(duration_ms)),
+                "memoryMb": memory,
+                "errorMessage": None,
+            }
+        )
+
+    return history

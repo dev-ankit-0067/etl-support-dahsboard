@@ -43,7 +43,7 @@ interface LogAnalysisResponse {
 interface Props {
   jobId: string | null;
   jobName: string | null;
-  resourceType: "job" | "lambda";
+  resourceType: "job" | "lambda" | "emr";
   open: boolean;
   onClose: () => void;
 }
@@ -76,6 +76,8 @@ export default function CloudWatchLogViewer({
       const endpoint =
         resourceType === "lambda"
           ? `/api/logs/lambda/${jobName}`
+          : resourceType === "emr"
+          ? `/api/logs/emr-serverless/${jobId}`
           : `/api/logs/job/${jobId}`;
       const res = await fetch(endpoint);
       if (!res.ok) throw new Error("Failed to load logs");
@@ -145,7 +147,7 @@ export default function CloudWatchLogViewer({
     setJiraResult(null);
     try {
       const ticketText = logs.slice(-100).map((e) => `[${e.timestamp}] ${e.message}`).join("\n");
-      const description = `CloudWatch ${resourceType === "lambda" ? "Lambda" : "Glue Job"} log ticket for ${jobName ?? jobId ?? "unknown"}\n\n${ticketText}`;
+      const description = `CloudWatch ${resourceType === "lambda" ? "Lambda" : resourceType === "emr" ? "EMR Serverless job" : "Glue Job"} log ticket for ${jobName ?? jobId ?? "unknown"}\n\n${ticketText}`;
       const response = await fetch("/api/agent/jira", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -185,7 +187,7 @@ export default function CloudWatchLogViewer({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ScrollText className="h-5 w-5" />
-            CloudWatch Logs {resourceType === "lambda" ? "- Lambda" : "- Glue Job"}
+            CloudWatch Logs {resourceType === "lambda" ? "- Lambda" : resourceType === "emr" ? "- EMR Serverless" : "- Glue Job"}
           </DialogTitle>
           <p className="text-xs text-muted-foreground mt-2">
             {jobName || jobId}
@@ -261,7 +263,7 @@ export default function CloudWatchLogViewer({
               <AlertCircle className="h-8 w-8 text-amber-500" />
               <p className="text-sm font-medium">No logs available</p>
               <p className="text-xs text-muted-foreground">
-                This {resourceType === "lambda" ? "function" : "job"} may not have any log output yet.
+                This {resourceType === "lambda" ? "function" : resourceType === "emr" ? "EMR job" : "job"} may not have any log output yet.
               </p>
             </div>
           ) : (

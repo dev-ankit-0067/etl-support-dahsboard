@@ -19,3 +19,13 @@ class LambdaInvocation(BaseModel):
     endTime: str
     duration: str
     costPerRun: float
+
+
+class LambdaHistoryItem(BaseModel):
+    id: str
+    status: str
+    startTime: str
+    durationMs: int
+    cost: float
+    memoryMb: int
+    errorMessage: str | None = None
