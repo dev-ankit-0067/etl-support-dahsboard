@@ -3,6 +3,7 @@ from typing import List
 from fastapi import APIRouter
 
 from ..models.lambdas import LambdaInvocation, LambdaKpis
+from ..models.pipelines import PipelineHistoryItem
 from ..services import lambda_service
 
 router = APIRouter(prefix="/lambdas", tags=["lambdas"])
@@ -16,3 +17,8 @@ def kpis() -> LambdaKpis:
 @router.get("/runs", response_model=List[LambdaInvocation])
 def runs() -> List[LambdaInvocation]:
     return lambda_service.recent_invocations()
+
+
+@router.get("/history/{function_name}", response_model=List[PipelineHistoryItem])
+def history(function_name: str) -> List[PipelineHistoryItem]:
+    return lambda_service.history_for(function_name)

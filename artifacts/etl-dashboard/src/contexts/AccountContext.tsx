@@ -1,22 +1,19 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { setProjectHeader as setClientProjectHeader } from "@workspace/api-client-react";
+import { setProjectHeader as setRawProjectHeader } from "@/lib/api";
 
 export interface AwsAccount {
-  id: string;
+  id: string; // "all" or a project tag value
   label: string;
-  accountId: string;
-  scale: number;
-  region: string;
 }
-
-export const AWS_ACCOUNTS: AwsAccount[] = [
-  { id: "all", label: "All Projects", accountId: "—", scale: 1.0, region: "global" },
-  { id: "payments-platform", label: "Payments Platform", accountId: "PRJ-1042", scale: 0.32, region: "us-east-1" },
-  { id: "customer-data-hub", label: "Customer Data Hub", accountId: "PRJ-1108", scale: 0.24, region: "us-east-1" },
-  { id: "analytics-ml", label: "Analytics & ML", accountId: "PRJ-1175", scale: 0.18, region: "us-west-2" },
-  { id: "marketing-attribution", label: "Marketing Attribution", accountId: "PRJ-1213", scale: 0.12, region: "us-east-1" },
-  { id: "supply-chain-ops", label: "Supply Chain Ops", accountId: "PRJ-1287", scale: 0.09, region: "us-east-2" },
-  { id: "sandbox-dev", label: "Sandbox / Dev", accountId: "PRJ-9001", scale: 0.05, region: "us-east-2" },
-];
 
 interface AccountContextValue {
   account: AwsAccount;
@@ -24,13 +21,53 @@ interface AccountContextValue {
   accounts: AwsAccount[];
 }
 
+const ALL: AwsAccount = { id: "all", label: "All Projects" };
+
 const AccountContext = createContext<AccountContextValue | undefined>(undefined);
 
+function apiBase(): string {
+  return (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+}
+
+// Push the selected project to both API layers (X-Project header). null = all.
+function applyProjectHeader(id: string) {
+  const value = id === "all" ? null : id;
+  setClientProjectHeader(value);
+  setRawProjectHeader(value);
+}
+
 export function AccountProvider({ children }: { children: ReactNode }) {
-  const [accountId, setAccountId] = useState<string>("all");
-  const account = AWS_ACCOUNTS.find((a) => a.id === accountId) ?? AWS_ACCOUNTS[0];
+  const queryClient = useQueryClient();
+  const [accounts, setAccounts] = useState<AwsAccount[]>([ALL]);
+  const [accountId, setAccountIdState] = useState<string>("all");
+
+  // Load the project options (configured tag values) from the backend.
+  useEffect(() => {
+    fetch(`${apiBase()}/api/projects`)
+      .then((r) => r.json())
+      .then((d) => {
+        const projects: string[] = Array.isArray(d?.projects) ? d.projects : ["all"];
+        setAccounts(
+          projects.map((p) => (p === "all" ? ALL : { id: p, label: p })),
+        );
+      })
+      .catch(() => setAccounts([ALL]));
+  }, []);
+
+  const setAccountId = useCallback(
+    (id: string) => {
+      applyProjectHeader(id);
+      setAccountIdState(id);
+      // Refetch all active queries so data reflects the new project filter.
+      queryClient.invalidateQueries();
+    },
+    [queryClient],
+  );
+
+  const account = accounts.find((a) => a.id === accountId) ?? ALL;
+
   return (
-    <AccountContext.Provider value={{ account, setAccountId, accounts: AWS_ACCOUNTS }}>
+    <AccountContext.Provider value={{ account, setAccountId, accounts }}>
       {children}
     </AccountContext.Provider>
   );

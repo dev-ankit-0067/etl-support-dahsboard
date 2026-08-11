@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -11,19 +12,17 @@ from ..aws import client
 from ..cache import cached
 from ..config import get_settings
 from ..models.lambdas import LambdaInvocation, LambdaKpis
+from ..models.pipelines import PipelineHistoryItem
+from . import cloudwatch_service, tags_service
+
+_START_RE = re.compile(r"START RequestId: (?P<id>[0-9a-fA-F-]+)")
+_REPORT_RE = re.compile(r"REPORT RequestId: (?P<id>[0-9a-fA-F-]+).*?Duration: (?P<dur>[\d.]+) ms")
 
 log = logging.getLogger(__name__)
 
 # AWS Lambda pricing constants (us-east-1 x86, on-demand).
 _PRICE_PER_REQUEST = 0.0000002          # USD per invocation
 _PRICE_PER_GB_SECOND = 0.0000166667     # USD per GB-second
-
-
-def _matches_tag(tags: dict) -> bool:
-    s = get_settings()
-    if not s.lambda_function_tag_value:
-        return True
-    return tags.get(s.lambda_function_tag_key) == s.lambda_function_tag_value
 
 
 @cached("medium")
@@ -33,19 +32,17 @@ def list_functions() -> List[dict]:
     try:
         paginator = lam.get_paginator("list_functions")
         for page in paginator.paginate():
-            for fn in page.get("Functions", []):
-                try:
-                    arn = fn["FunctionArn"]
-                    tags = lam.list_tags(Resource=arn).get("Tags", {}) or {}
-                except (BotoCoreError, ClientError):
-                    tags = {}
-                if not _matches_tag(tags):
-                    continue
-                fn["_tags"] = tags
-                fns.append(fn)
+            fns.extend(page.get("Functions", []))
     except (BotoCoreError, ClientError) as exc:
         log.error("Lambda list_functions failed: %s", exc)
         raise
+
+    # Filter by the selected project tag (X-Project) when one is active.
+    arns = tags_service.project_arns()
+    if arns is not None:
+        fns = [f for f in fns if f.get("FunctionArn") in arns]
+    # Most recently modified first, so bounded views surface active/new functions.
+    fns.sort(key=lambda f: f.get("LastModified", ""), reverse=True)
     return fns
 
 
@@ -183,6 +180,58 @@ def _logs_latest_invocation(function_name: str) -> Optional[dict]:
         "start": datetime.fromtimestamp(start_ts / 1000, tz=timezone.utc) if start_ts else None,
         "end": datetime.fromtimestamp(end_ts / 1000, tz=timezone.utc) if end_ts else None,
     }
+
+
+@cached("short")
+def history_for(function_name: str, limit: int = 10) -> List[PipelineHistoryItem]:
+    """Recent invocations for a Lambda, parsed from its CloudWatch logs.
+
+    Groups events by RequestId using START/REPORT markers; an invocation is
+    Failed if it logged an error/timeout/traceback.
+    """
+    data = cloudwatch_service.get_lambda_logs(function_name, limit=2000)
+    # get_lambda_logs returns newest-first; parse chronologically (START before REPORT/ERROR).
+    events = sorted(data.get("events", []), key=lambda e: e.get("timestamp", ""))
+
+    invocations: dict = {}
+    order: List[str] = []
+    current: Optional[str] = None
+    for e in events:
+        msg = e.get("message", "")
+        start = _START_RE.search(msg)
+        if start:
+            current = start.group("id")
+            if current not in invocations:
+                invocations[current] = {"start": e.get("timestamp", ""), "duration": 0.0, "error": None}
+                order.append(current)
+            continue
+        report = _REPORT_RE.search(msg)
+        if report:
+            inv = invocations.setdefault(report.group("id"), {"start": e.get("timestamp", ""), "duration": 0.0, "error": None})
+            inv["duration"] = float(report.group("dur"))
+            continue
+        if current and ("[ERROR]" in msg or "Task timed out" in msg or "Traceback" in msg):
+            inv = invocations.get(current)
+            if inv and not inv["error"]:
+                inv["error"] = msg.strip().split("\n", 1)[0][:200]
+
+    items: List[PipelineHistoryItem] = []
+    for iid in reversed(order):  # events are ascending → newest invocations last
+        inv = invocations[iid]
+        items.append(
+            PipelineHistoryItem(
+                id=iid,
+                status="Failed" if inv["error"] else "Success",
+                startTime=inv["start"],
+                durationMin=round(inv["duration"] / 60000.0, 4),  # ms → minutes
+                cost=0.0,
+                recordsProcessed=0,
+                errorMessage=inv["error"],
+            )
+        )
+        if len(items) >= limit:
+            break
+    return items
 
 
 @cached("short")

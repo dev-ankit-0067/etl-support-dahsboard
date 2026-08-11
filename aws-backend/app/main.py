@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from . import __version__
 from .auth import require_auth
 from .config import get_settings
+from .context import current_project
 from .logging_config import configure_logging
 from .routers import (
     agents, cloudwatch, costs, emr, emr_serverless, health, incidents,
@@ -18,6 +19,29 @@ from .routers import (
 )
 
 log = logging.getLogger(__name__)
+
+
+class ProjectContextMiddleware:
+    """Pure-ASGI middleware: set the per-request project from the X-Project header.
+
+    (A raw ASGI middleware — not BaseHTTPMiddleware — so the contextvar it sets is
+    visible in the endpoint, including sync endpoints run in the threadpool.)
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        raw = dict(scope.get("headers") or {}).get(b"x-project")
+        value = raw.decode() if raw else None
+        token = current_project.set(None if not value or value.lower() == "all" else value)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            current_project.reset(token)
 
 
 def create_app() -> FastAPI:
@@ -40,6 +64,7 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
+    app.add_middleware(ProjectContextMiddleware)
 
     # Health (root) and /config (meta) are public; everything else requires a
     # valid Cognito token when auth is configured.

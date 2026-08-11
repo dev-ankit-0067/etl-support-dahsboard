@@ -38,33 +38,32 @@ const RANGE_KEYS: Record<RangeKey, keyof ServiceTrendData> = {
 export default function Costs() {
   const { data: kpis } = useGetCostKpis();
   const { account } = useAccount();
-  const accountScale = account.scale;
   const [service, setService] = useState<ServiceKey>("all");
   const [range, setRange] = useState<RangeKey>("7d");
   const [serviceTrend, setServiceTrend] = useState<ServiceTrendData | null>(null);
 
+  // Re-fetch when the project changes; the X-Project header applies the filter server-side.
   useEffect(() => {
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     apiFetch(`${base}/api/costs/service-trend`)
       .then((r) => r.json())
       .then((d: ServiceTrendData) => setServiceTrend(d))
       .catch(() => setServiceTrend(null));
-  }, []);
+  }, [account.id]);
 
   const chartData = useMemo(() => {
     if (!serviceTrend) return [];
     const rangeKey = RANGE_KEYS[range];
     const r = serviceTrend[rangeKey];
     if (!r) return [];
-    // Combine into a single array keyed by date so multiple lines can share an axis,
-    // scaling each series by the selected AWS account's portion of total spend.
+    // Combine into a single array keyed by date so multiple lines can share an axis.
     return r.glue.map((g, i) => ({
       date: g.date,
-      glue: Math.round(g.cost * accountScale * 100) / 100,
-      lambda: Math.round((r.lambda_[i]?.cost ?? 0) * accountScale * 100) / 100,
-      all: Math.round((r.all[i]?.cost ?? 0) * accountScale * 100) / 100,
+      glue: Math.round(g.cost * 100) / 100,
+      lambda: Math.round((r.lambda_[i]?.cost ?? 0) * 100) / 100,
+      all: Math.round((r.all[i]?.cost ?? 0) * 100) / 100,
     }));
-  }, [serviceTrend, range, accountScale]);
+  }, [serviceTrend, range]);
 
   if (!kpis) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
 
@@ -76,11 +75,11 @@ export default function Costs() {
   const lastMonthLabel = new Date(today.getFullYear(), today.getMonth() - 1, 1)
     .toLocaleString("en-US", { month: "long", year: "numeric" });
 
-  const totalMtd = Math.round(kpis.totalCostMtd * accountScale);
+  const totalMtd = Math.round(kpis.totalCostMtd);
   const lastMonthSamePeriod = Math.round(totalMtd * 0.92);                   // -8% YoY improvement
   const forecastThisMonth = Math.round((totalMtd / dayOfMonth) * daysInThisMonth);
   const lastMonthTotal = Math.round(lastMonthSamePeriod * (daysInThisMonth / dayOfMonth) * 1.04);
-  const budget = Math.round(kpis.budget * accountScale);
+  const budget = Math.round(kpis.budget);
   const budgetPercent = budget > 0 ? (totalMtd / budget) * 100 : 0;
 
   const mtdVsLastPct = ((totalMtd - lastMonthSamePeriod) / lastMonthSamePeriod) * 100;

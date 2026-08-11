@@ -247,7 +247,6 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
 export default function Incidents() {
   const { data: incidents } = useGetActiveIncidents();
   const { account } = useAccount();
-  const accountScale = account.scale;
   const [dateRange, setDateRange] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -294,9 +293,8 @@ export default function Incidents() {
     { name: "P4", count: priorityCounts.P4 || 0, fill: "#94a3b8" },
   ];
 
-  // Slice incidents proportional to selected account using only fetched data.
-  const rowKeep = account.id === "all" ? activeIncidentRows.length : Math.max(1, Math.ceil(activeIncidentRows.length * accountScale));
-  const incidentRows: Incident[] = activeIncidentRows.slice(0, rowKeep);
+  // Filtering is done server-side by the selected project (X-Project header).
+  const incidentRows: Incident[] = activeIncidentRows;
 
   // Status pie data — count incidents grouped by status
   const statusCounts = incidentRows.reduce<Record<string, number>>((acc, inc) => {

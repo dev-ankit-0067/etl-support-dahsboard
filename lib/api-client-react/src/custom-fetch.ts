@@ -17,6 +17,15 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _projectHeader: string | null = null;
+
+/**
+ * Set the project tag filter sent as the `X-Project` header on every request
+ * (null clears it → the API applies no project filter).
+ */
+export function setProjectHeader(project: string | null): void {
+  _projectHeader = project;
+}
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -356,6 +365,10 @@ export async function customFetch<T = unknown>(
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
     }
+  }
+
+  if (_projectHeader && !headers.has("x-project")) {
+    headers.set("x-project", _projectHeader);
   }
 
   const requestInfo = { method, url: resolveUrl(input) };

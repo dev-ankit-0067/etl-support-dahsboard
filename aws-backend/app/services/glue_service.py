@@ -12,6 +12,7 @@ from ..cache import cached
 from ..config import get_settings
 from ..models.overview import FailedJob, JobStatusPoint
 from ..models.pipelines import LiveStatus, PipelineHistoryItem, PipelineRun
+from . import tags_service
 
 log = logging.getLogger(__name__)
 
@@ -82,6 +83,14 @@ def list_jobs() -> List[dict]:
     except (BotoCoreError, ClientError) as exc:
         log.error("Glue list_jobs failed: %s", exc)
         raise
+
+    arns = tags_service.project_arns()
+    if arns is not None:
+        region, account = settings.aws_region, tags_service.account_id()
+        jobs = [
+            j for j in jobs
+            if f"arn:aws:glue:{region}:{account}:job/{j['Name']}" in arns
+        ]
     return jobs
 
 

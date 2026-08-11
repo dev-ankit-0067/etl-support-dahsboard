@@ -6,6 +6,7 @@ from typing import Any, Callable
 from cachetools import TTLCache
 
 from .config import get_settings
+from .context import current_project
 
 _LOCK = Lock()
 _settings = get_settings()
@@ -25,7 +26,8 @@ def cached(bucket: str = "medium") -> Callable:
 
         @wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            key = (fn.__qualname__, args, tuple(sorted(kwargs.items())))
+            # Include the active project so cached results are scoped per project filter.
+            key = (fn.__qualname__, current_project.get(), args, tuple(sorted(kwargs.items())))
             with _LOCK:
                 if key in store:
                     return store[key]

@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timedelta
-from typing import List
+from typing import List, Optional
 
 from botocore.exceptions import BotoCoreError, ClientError
 
 from ..aws import client
 from ..cache import cached
 from ..config import get_settings
+from . import tags_service
 from ..models.costs import (
     CostBreakdown,
     CostByPipeline,
@@ -27,6 +28,23 @@ def _ce_client():
     return client("ce")
 
 
+def _project_filter():
+    """Cost Explorer tag filter for the active project, or None when unfiltered."""
+    project = tags_service.active_project()
+    if not project:
+        return None
+    return {"Tags": {"Key": get_settings().project_tag_key, "Values": [project]}}
+
+
+def _merge_filter(existing: Optional[dict]) -> Optional[dict]:
+    pf = _project_filter()
+    if pf is None:
+        return existing
+    if existing is None:
+        return pf
+    return {"And": [existing, pf]}
+
+
 def _today() -> date:
     return datetime.utcnow().date()
 
@@ -38,11 +56,13 @@ def _month_start() -> date:
 def _fetch_grouped(start: date, end: date, group_key: str, granularity: str = "DAILY"):
     ce = _ce_client()
     try:
+        flt = _merge_filter(None)
         resp = ce.get_cost_and_usage(
             TimePeriod={"Start": start.isoformat(), "End": end.isoformat()},
             Granularity=granularity,
             Metrics=["UnblendedCost"],
             GroupBy=[{"Type": "TAG", "Key": group_key}],
+            **({"Filter": flt} if flt else {}),
         )
     except (BotoCoreError, ClientError) as exc:
         log.error("CostExplorer get_cost_and_usage failed: %s", exc)
@@ -59,10 +79,12 @@ def kpis() -> CostKpis:
     ce = _ce_client()
 
     try:
+        flt = _merge_filter(None)
         total = ce.get_cost_and_usage(
             TimePeriod={"Start": start.isoformat(), "End": end.isoformat()},
             Granularity="MONTHLY",
             Metrics=["UnblendedCost"],
+            **({"Filter": flt} if flt else {}),
         )
         budgets = client("budgets").describe_budgets(
             AccountId=client("sts").get_caller_identity()["Account"],
@@ -122,10 +144,12 @@ def _trend(days: int) -> List[CostTrendPoint]:
     end = _today() + timedelta(days=1)
     start = end - timedelta(days=days)
     try:
+        flt = _merge_filter(None)
         resp = ce.get_cost_and_usage(
             TimePeriod={"Start": start.isoformat(), "End": end.isoformat()},
             Granularity="DAILY",
             Metrics=["UnblendedCost"],
+            **({"Filter": flt} if flt else {}),
         )
     except (BotoCoreError, ClientError) as exc:
         log.error("trend(%d) failed: %s", days, exc)
@@ -162,12 +186,7 @@ def _trend_by_service(days: int, service: str) -> List[CostTrendPoint]:
             TimePeriod={"Start": start.isoformat(), "End": end.isoformat()},
             Granularity="DAILY",
             Metrics=["UnblendedCost"],
-            Filter={
-                "Dimensions": {
-                    "Key": "SERVICE",
-                    "Values": [service],
-                }
-            },
+            Filter=_merge_filter({"Dimensions": {"Key": "SERVICE", "Values": [service]}}),
         )
     except (BotoCoreError, ClientError) as exc:
         log.error("trend_by_service(%d, %s) failed: %s", days, service, exc)

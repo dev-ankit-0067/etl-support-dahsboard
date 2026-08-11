@@ -103,19 +103,23 @@ to `/`. See [Authentication](#authentication) below.
 > endpoints — see [03-backend-express.md](./03-backend-express.md)). `RcaDetailModal` is still used
 > indirectly, and `IncidentDetailModal` imports RCA hooks.
 
-## State: `contexts/AccountContext.tsx`
-Provides a **project/account selector** that scales displayed figures per business unit.
+## State: `contexts/AccountContext.tsx` (project filter)
+Provides the **project selector**, which applies a **real server-side tag filter** (not client-side
+scaling).
 
-- `interface AwsAccount { id, label, accountId, scale, region }`.
-- `AWS_ACCOUNTS` — 7 predefined entries: `All Projects` (scale 1.0) plus Payments Platform,
-  Customer Data Hub, Analytics & ML, Marketing Attribution, Supply Chain Ops, Sandbox/Dev, each
-  with a fractional `scale` (0.32 … 0.05) and a region.
-- `AccountProvider` holds the selected `accountId` (default `"all"`) and exposes
-  `{ account, setAccountId, accounts }`.
-- `useAccount()` — hook; throws if used outside the provider.
+- `interface AwsAccount { id, label }` — `id` is `"all"` or a project tag value.
+- `AccountProvider` fetches the options from **`GET /api/projects`** (`All Projects` + configured tag
+  values) and holds the selected `accountId` (default `"all"`); exposes `{ account, setAccountId,
+  accounts }`. `useAccount()` throws outside the provider.
+- On change, `setAccountId` pushes the selection to **both API layers** as the `X-Project` header
+  (`setProjectHeader` from `@workspace/api-client-react` for generated hooks, and from `@/lib/api`
+  for raw `apiFetch`), then calls `queryClient.invalidateQueries()` so all active queries refetch.
+- Raw-fetch pages (executive-overview `/runs`, costs `/service-trend`) add `account.id` to their
+  effect deps so they refetch on project change too.
 
-`scale` is applied client-side: cost tiles multiply totals by `account.scale`; incident/rows lists
-are sliced proportionally. This simulates per-project drill-down over a single shared dataset.
+The backend reads `X-Project` and filters by the `project` resource tag (see
+[02-backend-python.md → Project tag filtering](./02-backend-python.md#project-tag-filtering)). No
+client-side scaling/slicing remains — the pages render exactly what the (filtered) API returns.
 
 ## Authentication
 

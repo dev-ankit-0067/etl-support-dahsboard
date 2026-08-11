@@ -90,8 +90,8 @@ Loads from environment / `.env` (case-insensitive, extra ignored). Groups:
   timeout knobs (`boto_max_attempts=6`, `boto_retry_mode="standard"`, connect=5s, read=30s).
 - **Caching:** `cache_ttl_short=30`, `cache_ttl_medium=300`, `cache_ttl_long=1800`,
   `cache_maxsize=1024` (seconds).
-- **Domain filters:** `glue_job_name_filter`, `lambda_function_tag_key`/`value`,
-  `cost_explorer_tag_key` (`CostCenter`), `sla_breach_minutes=60`.
+- **Domain filters:** `glue_job_name_filter`, `cost_explorer_tag_key` (`CostCenter`),
+  `sla_breach_minutes=60`.
 - **EMR log groups:** `emr_log_group` (EMR-on-EC2, no default), `emr_serverless_log_group`
   (default `/aws/emr-serverless`).
 - **HuggingFace (LLM):** `huggingface_api_token`, `huggingface_model`
@@ -155,9 +155,33 @@ Each router is a thin FastAPI `APIRouter` with a prefix and tag. Endpoints below
 - `GET /healthz` → `{status: "ok", version}`
 - `GET /readyz` → `{status: "ready"}`
 
-### `meta.py` — `/config`, tag `meta` (public)
+### `meta.py` — `/config` & `/projects`, tag `meta` (public)
 - `GET /config` → `{ cognito: { userPoolId, clientId, region } }` — runtime config the SPA reads
   before login. Values come from settings; `null` when Cognito isn't configured.
+- `GET /projects` → `{ tagKey, projects: ["all", ...project_value_list] }` — options for the project
+  dropdown (from `PROJECT_VALUES`).
+
+## Project tag filtering
+
+The project dropdown filters all data by an AWS resource **tag** (`project_tag_key`, default `project`)
+without threading a parameter through every function:
+
+- **`context.py`** — `current_project: ContextVar[Optional[str]]`. Per-request, a **pure-ASGI**
+  `ProjectContextMiddleware` (in `main.py`) sets it from the **`X-Project`** header (`None` when the
+  header is absent or `all`). Pure ASGI (not `BaseHTTPMiddleware`) so the contextvar is visible in
+  the sync endpoints that run in the threadpool.
+- **`cache.py`** — the `cached` key now includes `current_project.get()`, so cached results are
+  **scoped per project** automatically.
+- **`services/tags_service.py`** — `arns_for_project(project)` (`@cached`) resolves the set of
+  resource ARNs tagged `project=<value>` via the **Resource Groups Tagging API** (`get_resources`);
+  `project_arns()` returns that set for the active project or `None` when unfiltered; `account_id()`
+  is cached via STS.
+- **Service filtering:** each resource service intersects its list with `project_arns()` when set —
+  Glue (job ARN), Lambda (`FunctionArn`), EMR (cluster ARN), EMR Serverless (application `arn`). Cost
+  Explorer merges a `{Tags:{Key,Values}}` filter into each `get_cost_and_usage` (`And`-combined with
+  existing filters). Jira is best-effort: an extra JQL `labels = "<project>"` clause.
+- **Config:** `project_tag_key` (`project`), `project_values` (CSV string → `project_value_list`).
+- **IAM:** adds `tag:GetResources` / `GetTagKeys` / `GetTagValues` (in `iam-policy.json` + deploy role).
 
 ### `overview.py` — `/overview`, tag `overview`
 Composes Glue + Jira data for the Executive Overview page.
@@ -276,7 +300,7 @@ Maps Glue job runs into the dashboard's pipeline shapes.
 Derives Lambda health/cost from CloudWatch metrics.
 
 **Constants/helpers:** `_PRICE_PER_REQUEST`, `_PRICE_PER_GB_SECOND` (us-east-1 x86 on-demand);
-`_matches_tag(tags)` (filters by `lambda_function_tag_key/value`); `_metric_sum(name, fn, period)`
+`_metric_sum(name, fn, period)`
 and `_metric_avg(...)` (CloudWatch `get_metric_statistics` over `AWS/Lambda`);
 `_cost_per_invocation(memory_mb, avg_ms)`; `_fmt_duration(ms)`; `_status(errors, throttles,
 invocations)`; `_logs_latest_invocation(fn)` (reads the newest CloudWatch log stream for
@@ -285,7 +309,7 @@ start/end timestamps).
 **Public functions:**
 | Function | Bucket | Returns |
 |----------|--------|---------|
-| `list_functions()` | medium | tagged Lambda functions |
+| `list_functions()` | medium | all Lambda functions (filtered by the `project` tag when a project is selected) |
 | `kpis()` | medium | `LambdaKpis` — totals, healthy/withErrors, throttles, avg duration, cold-start %, 24h invocations |
 | `recent_invocations(limit=12)` | short | `List[LambdaInvocation]` |
 

@@ -573,7 +573,6 @@ export default function ExecutiveOverview() {
   const { data: kpis } = useGetOverviewKpis();
   const { data: runs } = useGetPipelineRuns();
   const { account } = useAccount();
-  const accountScale = account.scale;
   const [dateRange, setDateRange] = useState("today");
   const [resourceType, setResourceType] = useState<ResType>("glue");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -639,7 +638,7 @@ export default function ExecutiveOverview() {
       .then((runs) => setResourceRuns(Array.isArray(runs) ? runs : []))
       .catch(() => setResourceRuns([]))
       .finally(() => setResourceLoading(false));
-  }, [resourceType]);
+  }, [resourceType, account.id]);
 
   // Date-range changes filter the loaded runs client-side (no fetch), so briefly
   // show the same blocking overlay for consistent feedback.
@@ -710,14 +709,8 @@ export default function ExecutiveOverview() {
   const costHeader = cfg.costHeader;
 
   type Row = NormRun & { expandable: boolean };
-  const allRows: Row[] = latestByName.map((r) => ({ ...r, expandable: true }));
-
-  // Slice rows proportional to selected account so the table reflects the scope
-  const rowKeep =
-    account.id === "all"
-      ? allRows.length
-      : Math.max(1, Math.ceil(allRows.length * accountScale));
-  const rows: Row[] = allRows.slice(0, rowKeep);
+  // Filtering is done server-side by the selected project (X-Project header).
+  const rows: Row[] = latestByName.map((r) => ({ ...r, expandable: true }));
 
   return (
     <div className="relative flex flex-col h-[calc(100vh-7rem)] gap-3">

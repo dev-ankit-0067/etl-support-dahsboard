@@ -17,3 +17,13 @@ def config() -> dict:
             "region": s.cognito_region or s.aws_region,
         }
     }
+
+
+@router.get("/projects")
+def projects() -> dict:
+    """Project options for the dropdown: 'all' (no filter) + configured tag values."""
+    s = get_settings()
+    return {
+        "tagKey": s.project_tag_key,
+        "projects": ["all", *s.project_value_list],
+    }

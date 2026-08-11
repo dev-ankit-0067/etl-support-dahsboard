@@ -116,6 +116,10 @@ Resources:
                   - emr-serverless:ListJobRuns
                   - emr-serverless:GetJobRun
                 Resource: "*"
+              - Sid: TagRead
+                Effect: Allow
+                Action: [tag:GetResources, tag:GetTagKeys, tag:GetTagValues]
+                Resource: "*"
               - Sid: CloudWatchRead
                 Effect: Allow
                 Action:

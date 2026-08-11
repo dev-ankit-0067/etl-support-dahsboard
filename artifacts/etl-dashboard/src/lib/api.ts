@@ -4,10 +4,16 @@
 // setAuthTokenGetter — this covers the raw fetch() call sites.)
 
 let _token: string | null = null;
+let _project: string | null = null;
 let _onUnauthorized: (() => void) | null = null;
 
 export function setApiToken(token: string | null): void {
   _token = token;
+}
+
+// The selected project tag filter, sent as the X-Project header (null = all).
+export function setProjectHeader(project: string | null): void {
+  _project = project;
 }
 
 // Registered by AuthContext; invoked whenever an API call returns 401 so the
@@ -24,6 +30,9 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
   const headers = new Headers(init.headers);
   if (_token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${_token}`);
+  }
+  if (_project && !headers.has("X-Project")) {
+    headers.set("X-Project", _project);
   }
   const res = await fetch(input, { ...init, headers });
   if (res.status === 401) notifyUnauthorized();

@@ -9,7 +9,9 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from ..aws import client
 from ..cache import cached
+from ..config import get_settings
 from ..models.pipelines import PipelineHistoryItem, PipelineRun
+from . import tags_service
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +62,15 @@ def _list_clusters(limit: int = 50) -> List[dict]:
     except (BotoCoreError, ClientError) as exc:
         log.error("EMR list_clusters failed: %s", exc)
         raise
+
+    arns = tags_service.project_arns()
+    if arns is not None:
+        region, account = get_settings().aws_region, tags_service.account_id()
+        out = [
+            c for c in out
+            if (c.get("ClusterArn")
+                or f"arn:aws:elasticmapreduce:{region}:{account}:cluster/{c.get('Id')}") in arns
+        ]
     return out
 
 

@@ -12,6 +12,7 @@ from ..config import get_settings
 from ..models.incidents import IncidentRecord, IncidentSummary
 from ..models.rca import LifecycleStage, RcaLifecycle, RepeatIncident
 from ..cache import cached
+from . import tags_service
 
 log = logging.getLogger(__name__)
 
@@ -87,12 +88,14 @@ def list_issues(days: int = 30) -> List:
     client = JiraClient.get_client()
     
     try:
-        # Build JQL query - no date filter for now to get all issues
+        # Best-effort project filter: match a Jira label to the selected project tag value.
+        project = tags_service.active_project()
+        label_clause = f' AND labels = "{project}"' if project else ""
         jql = (
-            f"project = {settings.jira_project_key} "
+            f"project = {settings.jira_project_key}{label_clause} "
             "ORDER BY created DESC"
         )
-        
+
         issues = client.search_issues(jql, maxResults=None)
         log.info("Fetched %d issues from Jira project %s", len(issues), settings.jira_project_key)
         return issues

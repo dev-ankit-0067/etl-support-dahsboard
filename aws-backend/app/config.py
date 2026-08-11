@@ -47,19 +47,25 @@ class Settings(BaseSettings):
     glue_job_name_filter: Optional[str] = Field(
         default=None, description="Optional substring to filter Glue jobs by name."
     )
-    lambda_function_tag_key: str = Field(
-        default="Project",
-        description="Tag key used to filter Lambda functions belonging to the ETL platform.",
-    )
-    lambda_function_tag_value: Optional[str] = Field(
-        default=None,
-        description="If set, only functions with this tag value are included.",
-    )
     cost_explorer_tag_key: str = Field(
         default="CostCenter",
         description="Tag key used to group cost explorer queries.",
     )
     sla_breach_minutes: int = 60
+
+    # ---- Project tag filtering ----
+    project_tag_key: str = Field(
+        default="project",
+        description="Resource tag key the project dropdown filters on (case-sensitive).",
+    )
+    project_values: str = Field(
+        default="",
+        description="Comma-separated selectable project tag values (env: PROJECT_VALUES=poc,prod).",
+    )
+
+    @property
+    def project_value_list(self) -> List[str]:
+        return [x.strip() for x in self.project_values.split(",") if x.strip()]
 
     # ---- EMR log groups (CloudWatch) ----
     emr_log_group: Optional[str] = Field(

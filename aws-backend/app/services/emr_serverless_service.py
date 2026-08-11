@@ -10,6 +10,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from ..aws import client
 from ..cache import cached
 from ..models.pipelines import PipelineHistoryItem, PipelineRun
+from . import tags_service
 
 log = logging.getLogger(__name__)
 
@@ -47,10 +48,15 @@ def _list_applications(limit: int = 50) -> List[dict]:
     emr = client("emr-serverless")
     try:
         resp = emr.list_applications(maxResults=limit)
-        return resp.get("applications", [])
+        apps = resp.get("applications", [])
     except (BotoCoreError, ClientError) as exc:
         log.error("EMR Serverless list_applications failed: %s", exc)
         raise
+
+    arns = tags_service.project_arns()
+    if arns is not None:
+        apps = [a for a in apps if a.get("arn") in arns]
+    return apps
 
 
 def _latest_job_run(app_id: str) -> Optional[dict]:
