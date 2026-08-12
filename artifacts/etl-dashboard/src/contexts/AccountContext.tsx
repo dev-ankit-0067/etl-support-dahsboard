@@ -19,6 +19,7 @@ interface AccountContextValue {
   account: AwsAccount;
   setAccountId: (id: string) => void;
   accounts: AwsAccount[];
+  projectLoading: boolean;
 }
 
 const ALL: AwsAccount = { id: "all", label: "All Projects" };
@@ -40,6 +41,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [accounts, setAccounts] = useState<AwsAccount[]>([ALL]);
   const [accountId, setAccountIdState] = useState<string>("all");
+  const [projectLoading, setProjectLoading] = useState(false);
 
   // Load the project options (configured tag values) from the backend.
   useEffect(() => {
@@ -58,8 +60,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       applyProjectHeader(id);
       setAccountIdState(id);
-      // Refetch all active queries so data reflects the new project filter.
-      queryClient.invalidateQueries();
+      // Show a loading overlay until the refetched queries settle.
+      setProjectLoading(true);
+      queryClient
+        .invalidateQueries()
+        .finally(() => setProjectLoading(false));
     },
     [queryClient],
   );
@@ -67,7 +72,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const account = accounts.find((a) => a.id === accountId) ?? ALL;
 
   return (
-    <AccountContext.Provider value={{ account, setAccountId, accounts }}>
+    <AccountContext.Provider value={{ account, setAccountId, accounts, projectLoading }}>
       {children}
     </AccountContext.Provider>
   );

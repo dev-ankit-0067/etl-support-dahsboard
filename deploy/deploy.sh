@@ -87,11 +87,23 @@ fi
 
 # ---- 4b) clear a prior failed stack (ROLLBACK_COMPLETE can't be updated) ----
 ST="$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NONE)"
-if [ "$ST" = "ROLLBACK_COMPLETE" ] || [ "$ST" = "CREATE_FAILED" ]; then
-  echo "==> Removing prior failed stack ($ST)..."
-  aws cloudformation delete-stack --stack-name "$STACK"
-  aws cloudformation wait stack-delete-complete --stack-name "$STACK"
-fi
+case "$ST" in
+  ROLLBACK_COMPLETE|CREATE_FAILED|ROLLBACK_FAILED|DELETE_FAILED|UPDATE_ROLLBACK_FAILED)
+    echo "==> Removing prior failed stack ($ST)..."
+    aws cloudformation delete-stack --stack-name "$STACK"
+    if ! aws cloudformation wait stack-delete-complete --stack-name "$STACK" 2>/dev/null; then
+      # A resource (e.g. an IAM role we lack delete perms on) blocked deletion.
+      # Retry, retaining any resources still present so the stack can be removed.
+      RETAIN=$(aws cloudformation describe-stack-resources --stack-name "$STACK" \
+        --query "StackResources[?ResourceStatus=='DELETE_FAILED'].LogicalResourceId" --output text 2>/dev/null)
+      if [ -n "$RETAIN" ]; then
+        echo "    retaining undeletable resources: $RETAIN"
+        aws cloudformation delete-stack --stack-name "$STACK" --retain-resources $RETAIN
+        aws cloudformation wait stack-delete-complete --stack-name "$STACK" 2>/dev/null || true
+      fi
+    fi
+    ;;
+esac
 
 # ---- 5) deploy CloudFormation ----
 echo "==> Deploying CloudFormation stack: ${STACK}"
@@ -99,6 +111,7 @@ echo "==> Deploying CloudFormation stack: ${STACK}"
 PARAMS=(ImageUri="${ECR_URI}:${IMAGE_TAG}" SecretArn="$SECRET_ARN" VpcId="$VPC_ID" Subnets="$SUBNETS")
 [ -n "${EXEC_ROLE_ARN:-}" ] && PARAMS+=(ExecutionRoleArn="$EXEC_ROLE_ARN")
 [ -n "${TASK_ROLE_ARN:-}" ] && PARAMS+=(TaskRoleArn="$TASK_ROLE_ARN")
+[ -n "${CERT_ARN:-}" ] && PARAMS+=(CertificateArn="$CERT_ARN")
 
 aws cloudformation deploy \
   --stack-name "$STACK" \

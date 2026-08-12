@@ -113,7 +113,10 @@ scaling).
   accounts }`. `useAccount()` throws outside the provider.
 - On change, `setAccountId` pushes the selection to **both API layers** as the `X-Project` header
   (`setProjectHeader` from `@workspace/api-client-react` for generated hooks, and from `@/lib/api`
-  for raw `apiFetch`), then calls `queryClient.invalidateQueries()` so all active queries refetch.
+  for raw `apiFetch`), then awaits `queryClient.invalidateQueries()` so all active queries refetch.
+- Exposes a **`projectLoading`** flag (true while the refetch settles). `DashboardLayout` renders a
+  blocking overlay over the page content while it's set, so switching projects shows a loading state
+  on every page.
 - Raw-fetch pages (executive-overview `/runs`, costs `/service-trend`) add `account.id` to their
   effect deps so they refetch on project change too.
 
@@ -166,10 +169,12 @@ The chrome shared by every page:
 - **Left sidebar** — OpsGuardian brand + nav (`Executive Overview` `/`, `Incident Center`
   `/incidents`, `Cost Insights` `/costs`) using wouter `Link`; active item highlighted via
   `useLocation()`.
-- **Top project bar** — centered `Projects:` `Select` bound to `AccountContext`.
+- **Top project bar** — centered `Projects:` `Select` bound to `AccountContext` (real tag filter).
 - **Header** — a search input, a "Last refreshed" indicator, bell/settings icon buttons, and (when
   auth is required) the signed-in user + a **Sign out** button.
-- **Main** — scrollable content area rendering `{children}`.
+- **Main** — scrollable content area rendering `{children}`; shows a **blocking loading overlay**
+  (spinner + "Loading {project}…") while `AccountContext.projectLoading` is set, i.e. during a
+  project switch.
 
 ## Pages
 

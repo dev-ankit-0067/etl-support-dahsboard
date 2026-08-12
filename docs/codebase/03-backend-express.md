@@ -82,8 +82,8 @@ The data is hard-coded fixtures shaped to the same schemas the FastAPI backend p
 
 > **Coverage difference vs FastAPI:** the Express server implements some **contract endpoints the
 > FastAPI backend does not** (e.g. `/performance/*`, `/incidents/queue`, `/incidents/oncall`,
-> `/rca/detail/:id`, `/rca/failure-patterns`, `/rca/metrics`, `/lambdas/history`,
-> `/lambdas/cost-*`, `/costs/optimization`). The frontend pages that use those hooks
+> `/rca/detail/:id`, `/rca/failure-patterns`, `/rca/metrics`, `/lambdas/cost-*`,
+> `/costs/optimization`). (`/lambdas/history` is now implemented by FastAPI too.) The frontend pages that use those hooks
 > (`performance.tsx`, `rca.tsx`, parts of `incidents.tsx`) therefore rely on this mock server (or an
 > equivalent) rather than the Python backend.
 

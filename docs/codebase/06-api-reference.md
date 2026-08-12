@@ -74,7 +74,7 @@ errorMessage?`
 |--------|------|---------|---------------|
 | GET | `/lambdas/kpis` | FastAPI ✅ / Express ✅ | `LambdaKpis` |
 | GET | `/lambdas/runs` | FastAPI ✅ / Express ✅ | `LambdaInvocation[]` |
-| GET | `/lambdas/history/{functionName}` | Express ⚪ | history items |
+| GET | `/lambdas/history/{functionName}` | FastAPI ✅ / Express ⚪ | `PipelineHistoryItem[]` — recent invocations parsed from CloudWatch logs (id = RequestId) |
 | GET | `/lambdas/cost-breakdown` | Express ⚪ | cost breakdown |
 | GET | `/lambdas/cost-performance` | Express ⚪ | cost vs perf |
 

@@ -5,7 +5,7 @@ Deploys the **frontend and backend in one container** to **ECS/Fargate**, fronte
 static keys), and all other configuration is pulled from **AWS Secrets Manager**.
 
 > Matches the reference diagram in [`../docs/diagrams/`](../docs/diagrams/fargate-deployment.md)
-> (default-VPC / HTTP-only variant).
+> (default-VPC variant; HTTP by default, optional HTTPS via a cert — see [HTTPS / TLS](#https--tls)).
 
 ## What gets created
 
@@ -13,7 +13,7 @@ static keys), and all other configuration is pulled from **AWS Secrets Manager**
 |----------|---------|
 | **ECR repo** `opsguardian` | Holds the built container image |
 | **Secrets Manager secret** `opsguardian/app-env` | All app env vars **except** AWS credentials |
-| **CloudFormation stack** `opsguardian` | ALB + listener + target group, ECS cluster + Fargate service + task definition, 2 security groups, CloudWatch log group, and two IAM roles |
+| **CloudFormation stack** `opsguardian` | ALB + listener(s) (HTTP 80; HTTPS 443 + redirect when `CERT_ARN` is set) + target group, ECS cluster + Fargate service + task definition, 2 security groups, CloudWatch log group, and (unless role ARNs are passed) two IAM roles |
 | **IAM Task Role** | Runtime AWS read access (Glue, Lambda, CloudWatch, Cost Explorer/Budgets, STS) — mirrors `aws-backend/iam-policy.json` |
 | **IAM Execution Role** | Pull image from ECR, write logs, read the secret at task start |
 
@@ -89,9 +89,11 @@ into Secrets Manager on the next `deploy.sh`, so the deployed app is login-gated
 ./deploy/deploy.sh
 ```
 
-Optional overrides (env vars): `STACK`, `ECR_REPO`, `SECRET_NAME`, `IMAGE_TAG`.
-On success it prints the public URL, e.g. `http://opsguardian-alb-xxxx.us-east-1.elb.amazonaws.com`.
-Allow 1–2 minutes after the first deploy for the target to pass health checks.
+Env vars: `EXEC_ROLE_ARN` / `TASK_ROLE_ARN` (pre-created role ARNs — required when the deploy
+identity can't create IAM roles, see [iam/README.md](./iam/README.md)), `CERT_ARN` (enable HTTPS —
+see [HTTPS / TLS](#https--tls)), and overrides `STACK`, `ECR_REPO`, `SECRET_NAME`, `IMAGE_TAG`.
+On success it prints the public URL. Allow 1–2 minutes after the first deploy for the target to pass
+health checks.
 
 ### Redeploying after code changes
 Re-run `./deploy/deploy.sh` — it rebuilds/pushes a new image tag and updates the stack (rolling
@@ -107,6 +109,34 @@ open  http://<alb-dns>/                 # dashboard UI
 
 Logs: CloudWatch log group `/ecs/opsguardian` (both nginx and backend stream there).
 
+## HTTPS / TLS
+
+The ALB serves **HTTP only by default**. Pass a `CERT_ARN` (an ACM certificate ARN) and the stack
+adds a **443 HTTPS listener** (TLS 1.3 policy `ELBSecurityPolicy-TLS13-1-2-2021-06`) and switches the
+**port-80 listener to redirect → 443**. This is driven by the `CertificateArn` parameter +
+`HasCert` condition in `cloudformation.yaml`; the ALB security group already allows 443.
+
+### Self-signed cert (testing)
+No domain needed. Generates a self-signed cert for the ALB's DNS name, imports it to ACM, and
+deploys with it:
+
+```bash
+CERT_ARN="$(./deploy/setup-selfsigned-cert.sh)" \
+EXEC_ROLE_ARN=arn:aws:iam::<acct>:role/opsguardian-exec-role \
+TASK_ROLE_ARN=arn:aws:iam::<acct>:role/opsguardian-task-role \
+./deploy/deploy.sh
+```
+
+`setup-selfsigned-cert.sh` reads the ALB DNS from the deployed stack, so **deploy once over HTTP
+first**, then run this. Browsers will warn (untrusted CA) — the encryption is real; only the CA
+trust is missing. Delete the cert later with
+`aws acm delete-certificate --certificate-arn <arn>`.
+
+### Real cert (production)
+Request/import a **public ACM cert for a domain you own** (a cert can't be issued for the ALB's
+`*.elb.amazonaws.com` name), then deploy with `CERT_ARN=<that-arn>` and point the domain's DNS
+(CNAME / Route 53 alias) at the ALB. No code changes — same `CertificateArn` parameter.
+
 ## Tear down
 
 ```bash
@@ -117,9 +147,8 @@ Deletes the CloudFormation stack, the ECR repo (with images), and the secret.
 
 ## Notes & options
 
-- **HTTP only** on the ALB (port 80) per the chosen setup. To add HTTPS: request/import an ACM cert,
-  add an `AWS::ElasticLoadBalancingV2::Listener` on 443 with `Certificates` + `SslPolicy`, and
-  (optionally) redirect 80→443. Ask and I'll wire it in.
+- **HTTP/HTTPS**: HTTP-only by default; pass `CERT_ARN` to enable HTTPS + 80→443 redirect — see
+  [HTTPS / TLS](#https--tls).
 - **Default VPC / public subnets**: the task runs with a public IP (`AssignPublicIp: ENABLED`) so it
   can pull from ECR and Secrets Manager without a NAT gateway. For the private-subnet + NAT topology,
   switch to the "new VPC" variant from the design doc.

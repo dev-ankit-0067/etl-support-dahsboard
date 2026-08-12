@@ -11,6 +11,7 @@ import {
   FolderKanban,
   LogOut,
   User,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { account, accounts, setAccountId } = useAccount();
+  const { account, accounts, setAccountId, projectLoading } = useAccount();
   const { user, authRequired, logout } = useAuth();
 
   const navItems = [
@@ -132,7 +133,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="relative flex-1 overflow-y-auto p-4 lg:p-6">
+          {projectLoading && (
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-white/70 backdrop-blur-sm">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Loading {account.label}…
+              </p>
+            </div>
+          )}
           {children}
         </main>
       </div>

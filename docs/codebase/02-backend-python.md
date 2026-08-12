@@ -203,6 +203,7 @@ Composes Glue + Jira data for the Executive Overview page.
 ### `lambdas.py` — `/lambdas`, tag `lambdas`
 - `GET /lambdas/kpis` → `LambdaKpis`
 - `GET /lambdas/runs` → `List[LambdaInvocation]`
+- `GET /lambdas/history/{function_name}` → `List[PipelineHistoryItem]` (invocations parsed from logs)
 
 ### `emr.py` — `/emr`, tag `emr`
 - `GET /emr/runs` → `List[PipelineRun]` (clusters) · `GET /emr/history/{cluster}` →
@@ -309,9 +310,10 @@ start/end timestamps).
 **Public functions:**
 | Function | Bucket | Returns |
 |----------|--------|---------|
-| `list_functions()` | medium | all Lambda functions (filtered by the `project` tag when a project is selected) |
+| `list_functions()` | medium | all Lambda functions, **newest-first by `LastModified`** (filtered by the `project` tag when selected) |
 | `kpis()` | medium | `LambdaKpis` — totals, healthy/withErrors, throttles, avg duration, cold-start %, 24h invocations |
 | `recent_invocations(limit=12)` | short | `List[LambdaInvocation]` |
+| `history_for(function_name, limit=10)` | short | `List[PipelineHistoryItem]` — groups CloudWatch log events by `RequestId` (`START`/`REPORT` markers; `Failed` on error/timeout/traceback) |
 
 ### `costs_service.py` — AWS Cost Explorer / Budgets
 **Helpers:** `_ce_client()`, `_today()`, `_month_start()`, `_fetch_grouped(...)`,
