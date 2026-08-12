@@ -53,3 +53,10 @@ __pycache__/
 .env
 .venv
 .ipynb
+
+# Python virtualenv accidentally created at the repo root (root-anchored so the
+# workspace lib/ packages are unaffected).
+/bin/
+/include/
+/lib/python3.*/
+/pyvenv.cfg
