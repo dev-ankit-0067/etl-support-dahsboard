@@ -30,8 +30,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8080 \
     WEB_CONCURRENCY=2
 
+# Apply available OS security patches (glibc/perl/nginx CVEs live in base packages),
+# then install what we need. `upgrade` pulls the latest patched versions Debian has
+# published at build time; combine with `docker build --pull` (see deploy.sh) so the
+# base layer itself is refreshed first.
 RUN apt-get update \
+ && apt-get -y upgrade \
  && apt-get install -y --no-install-recommends nginx supervisor curl ca-certificates \
+ && apt-get -y autoremove --purge \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

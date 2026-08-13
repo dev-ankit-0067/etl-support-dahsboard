@@ -42,7 +42,8 @@ aws ecr get-login-password --region "$AWS_REGION" \
 
 # ---- 2) build (linux/amd64 for Fargate) + push ----
 echo "==> Building image..."
-docker build --platform linux/amd64 -f deploy/Dockerfile -t "${ECR_URI}:${IMAGE_TAG}" .
+# --pull refreshes the base images so OS security patches land (see Dockerfile apt upgrade).
+docker build --pull --platform linux/amd64 -f deploy/Dockerfile -t "${ECR_URI}:${IMAGE_TAG}" .
 docker push "${ECR_URI}:${IMAGE_TAG}"
 
 # ---- 3) app config -> Secrets Manager (AWS creds stripped) ----
