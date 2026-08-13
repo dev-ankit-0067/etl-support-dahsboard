@@ -32,14 +32,23 @@ HUGGINGFACE_API_TOKEN=hf_your_token_here
 HUGGINGFACE_MODEL=mistralai/Mistral-7B-Instruct-v0.3
 ```
 
-Jira credentials must also be configured for `type=jira` to work:
+The incident provider must also be configured for `type=jira` (ticket creation) to work. The
+provider is chosen by `INCIDENT_PROVIDER` (default `jira`):
 
 ```env
+INCIDENT_PROVIDER=jira          # jira | servicenow
+
+# when INCIDENT_PROVIDER=jira
 JIRA_URL=https://your-org.atlassian.net
 JIRA_USERNAME=your@email.com
 JIRA_API_TOKEN=your_jira_api_token
 JIRA_PROJECT_KEY=SCRUM          # project where tickets are created
 JIRA_ISSUE_TYPE=Bug             # issue type for created tickets
+
+# when INCIDENT_PROVIDER=servicenow
+# SERVICENOW_INSTANCE=https://devXXXXX.service-now.com
+# SERVICENOW_USER=admin
+# SERVICENOW_PASSWORD=your_password_or_token
 ```
 
 ---
@@ -179,21 +188,28 @@ POST /api/agents/analyze
         └─ type=jira ──► run_jira_creation_agent()
                                │
                                ├─ Tool: fetch_cloudwatch_logs (same as above)
-                               ├─ Tool: create_jira_ticket
-                               │         └─ jira_service.create_ticket()
-                               │                └─ Jira REST API
+                               ├─ Tool: create_incident_ticket
+                               │         └─ incidents_service.create_ticket()
+                               │                └─ MCP server (Jira SDK or ServiceNow REST)
+                               │                   selected by INCIDENT_PROVIDER
                                └─ LLM: HuggingFace Inference API
 ```
+
+> The request field `type:"jira"` and response field `jira_key` are **kept as-is for API
+> stability** — they are mode/field names, not provider names. The ticket is created in whichever
+> backend `INCIDENT_PROVIDER` selects (Jira or ServiceNow); see
+> [02-backend-python.md](./02-backend-python.md#incidents--rca--mcp-based-provider-jira-or-servicenow).
 
 ### Key source files
 
 | File | Role |
 |------|------|
 | `app/routers/agents.py` | FastAPI route definition, request/response models |
-| `app/services/agent_service.py` | LangChain agents, tool definitions, LLM factory |
+| `app/services/agent_service.py` | LangChain agents, tool definitions (`create_incident_ticket`), LLM factory |
 | `app/services/cloudwatch_service.py` | CloudWatch log fetching (`get_job_logs`) |
-| `app/services/jira_service.py` | Jira integration (`create_ticket`) |
-| `app/config.py` | `huggingface_api_token`, `huggingface_model` settings |
+| `app/services/incidents_service.py` | Provider-agnostic ticket creation (`create_ticket`) via MCP |
+| `app/mcp_servers/{jira,servicenow}_server.py` | MCP servers doing the actual Jira/ServiceNow calls |
+| `app/config.py` | `incident_provider`, `huggingface_api_token`, `huggingface_model` settings |
 
 ---
 

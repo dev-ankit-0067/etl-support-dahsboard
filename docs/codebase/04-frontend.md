@@ -133,12 +133,14 @@ public endpoint directly.
   `InitiateAuth` with `USER_PASSWORD_AUTH`), `refreshTokens(cfg, refreshToken)` (`REFRESH_TOKEN_AUTH`),
   and `decodeJwt(token)`. Returns `{ idToken, accessToken, refreshToken, expiresAt }`.
 - **`contexts/AuthContext.tsx`** — the session:
-  - On mount, fetches `/api/config` to learn the pool/client/region; `authRequired` is true only when
-    those are present (so **local dev without Cognito runs open**).
+  - On mount, fetches `/api/config` to learn the pool/client/region **and** the active incident
+    provider (`incidentProviderLabel`, e.g. "Jira"/"ServiceNow"); `authRequired` is true only when
+    the Cognito values are present (so **local dev without Cognito runs open**).
   - Restores tokens from `localStorage`, refreshing on load if expired.
-  - Exposes `{ loading, authRequired, isAuthenticated, user, login, logout }`. On token change it
-    registers the ID token with **both** API layers: `setAuthTokenGetter` (generated client) and
-    `setApiToken` (raw `apiFetch`).
+  - Exposes `{ loading, authRequired, isAuthenticated, user, incidentProviderLabel, login, logout }`.
+    On token change it registers the ID token with **both** API layers: `setAuthTokenGetter`
+    (generated client) and `setApiToken` (raw `apiFetch`). Components use `incidentProviderLabel` to
+    label the ticket buttons/badges dynamically (see below).
 - **`pages/login.tsx`** — the `Login` component: branded card (ShieldCheck), username/password form,
   error banner, and a submit that calls `useAuth().login(...)`. On success the router auto-redirects.
 - **`App.tsx`** — `AppRoutes` enforces the gate (see App shell above).
@@ -211,6 +213,11 @@ Modals opened from this page: `CloudWatchLogViewer` (raw logs + AI actions) and 
 (structured AI analysis / Jira result).
 
 #### AI button → endpoint → agent mapping
+
+> **Label note:** the "Log Jira ticket"/"Log Jira" buttons below render their text from the active
+> incident provider — `Log {incidentProviderLabel}` (e.g. "Log ServiceNow ticket" when
+> `INCIDENT_PROVIDER=servicenow`), sourced from `useAuth().incidentProviderLabel`. The endpoint,
+> handler names and request `type:"jira"` are unchanged; only the visible label is dynamic.
 
 Each run/invocation row exposes three buttons. They hit **two different backend agents**:
 
@@ -291,7 +298,8 @@ Renders the **structured** AI analysis returned by the agentic endpoint.
   "Analysis" section.
 - `SECTION_ICONS` map + `severityClasses(text)` (P1 red → P4 blue) + `SectionCard` render each
   section; Severity becomes a pill, Details a scroll area.
-- For `mode="jira"` it shows a "Jira ticket created: <key>" badge. Includes a Copy-analysis button.
+- For `mode="jira"` it shows a "&lt;provider&gt; ticket created: &lt;key&gt;" badge (title and badge
+  text use `useAuth().incidentProviderLabel`). Includes a Copy-analysis button.
 
 ### `incidents/IncidentDetailModal.tsx`
 Deep incident view. Props `{ incident, open, onClose }`. Pulls `useGetRcaLifecycle()` +

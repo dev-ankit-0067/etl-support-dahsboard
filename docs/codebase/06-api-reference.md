@@ -21,12 +21,13 @@ Legend: ✅ implemented · 🟡 stub returns `[]` · ⚪ mock-only (not in FastA
 | GET | `/healthz` | FastAPI ✅ | `{ status: "ok", version }` |
 | GET | `/healthz` | Express ✅ | `{ status: "ok" }` (validated via `HealthCheckResponse.parse`; no `version`) |
 | GET | `/readyz` | FastAPI ✅ | `{ status: "ready" }` |
-| GET | `/config` | FastAPI ✅ | `{ cognito: { userPoolId, clientId, region } }` — SPA runtime config (pre-login) |
+| GET | `/config` | FastAPI ✅ | `{ cognito: { userPoolId, clientId, region }, incidentProvider, incidentProviderLabel }` — SPA runtime config (pre-login); provider drives incident data + ticket-button labels |
 | GET | `/projects` | FastAPI ✅ | `{ tagKey, projects: ["all", ...] }` — project dropdown options (from `PROJECT_VALUES`) |
 
 > **Project filter:** the SPA sends the selected project as an **`X-Project`** request header. When
 > present (and not `all`), the backend filters resources by the `project` tag (Glue/Lambda/EMR via
-> Resource Groups Tagging, Cost Explorer via a tag filter, Jira via a `labels` JQL clause). Absent /
+> Resource Groups Tagging, Cost Explorer via a tag filter; incidents via the active provider — Jira
+> `labels` JQL clause or ServiceNow's `SERVICENOW_PROJECT_FIELD`). Absent /
 > `all` = no filter. See [02-backend-python.md → Project tag filtering](./02-backend-python.md#project-tag-filtering).
 
 ---

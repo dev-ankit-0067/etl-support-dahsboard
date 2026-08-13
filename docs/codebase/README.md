@@ -46,7 +46,7 @@ live operations, incidents, root-cause analysis (RCA), and cloud cost insights �
 - **Express 5** (Node 24, TypeScript) — `api-server`, a mock/contract API used for local UI development
 - **boto3** for AWS access, **cachetools** for TTL caching, **python-json-logger** for structured logs
 - **LangChain** + **HuggingFace Inference** for the AI log-analysis agents
-- **Jira SDK** for incident/RCA data and ticket creation
+- **MCP-based incident provider** (in-process stdio MCP servers) for incident/RCA data and ticket creation — **Jira** or **ServiceNow**, selected by `INCIDENT_PROVIDER`
 - **PyJWT** for Cognito JWT verification on protected `/api/*` routes
 
 ### Shared / tooling
@@ -87,13 +87,15 @@ etl-support-dahsboard/
 2. In production, **nginx** proxies `"/api/"` to the **FastAPI backend** (port 8080) and everything
    else to the **frontend preview server** (port 3000).
 3. FastAPI pulls live data from **AWS** (Glue jobs/runs, Lambda + CloudWatch metrics, Cost Explorer,
-   Budgets) and from **Jira** (incidents & RCA), caches it with TTL buckets, and returns JSON that
-   matches the shapes the UI expects.
+   Budgets) and, for incidents & RCA, from the **configured incident provider** (Jira or ServiceNow,
+   via an in-process MCP server), caches it with TTL buckets, and returns JSON that matches the shapes
+   the UI expects.
 4. The **Express `api-server`** implements the same URL surface with hard-coded mock data — useful
    for UI work without AWS/Jira credentials. The OpenAPI spec in `lib/api-spec` is the shared
    contract that both the mock server and the generated frontend client are derived from.
 5. The **AI agents** (`/api/agent/*` and `/api/agents/*`) fetch CloudWatch logs, run a HuggingFace
-   LLM to produce a structured RCA, and can create a Jira ticket.
+   LLM to produce a structured RCA, and can open an incident ticket in the configured provider
+   (Jira or ServiceNow).
 
 See [01-architecture.md](./01-architecture.md) for the detailed flow and the important nuance about
 which backend is authoritative for which route.
