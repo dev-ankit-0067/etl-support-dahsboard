@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import CloudWatchLogViewer from "@/components/CloudWatchLogViewer";
 import LogAnalysisModal from "@/components/LogAnalysisModal";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   CheckCircle2,
   XCircle,
@@ -234,6 +235,7 @@ interface JobHistorySubsectionProps {
 }
 
 function JobHistorySubsection({ jobName, historyBase, onAnalyzeLogs, onGetRca, onLogJiraTicket }: JobHistorySubsectionProps) {
+  const { incidentProviderLabel } = useAuth();
   const { data, isLoading } = useQuery<RunHistoryItem[]>({
     queryKey: ["run-history", historyBase, jobName],
     queryFn: async () => {
@@ -376,7 +378,7 @@ function JobHistorySubsection({ jobName, historyBase, onAnalyzeLogs, onGetRca, o
                     onClick={() => onLogJiraTicket(r.id)}
                   >
                     <TicketPlus className="h-3 w-3 mr-1" />
-                    Log Jira
+                    Log {incidentProviderLabel}
                   </Button>
                 </div>
               </TableCell>
@@ -406,6 +408,7 @@ interface LambdaHistorySubsectionProps {
 }
 
 function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJiraTicket }: LambdaHistorySubsectionProps) {
+  const { incidentProviderLabel } = useAuth();
   const { data, isLoading } = useQuery<LambdaHistoryItem[]>({
     queryKey: ["lambda-history", functionName],
     queryFn: async () => {
@@ -557,7 +560,7 @@ function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJ
                     onClick={() => onLogJiraTicket(r.id)}
                   >
                     <TicketPlus className="h-3 w-3 mr-1" />
-                    Log Jira
+                    Log {incidentProviderLabel}
                   </Button>
                 </div>
               </TableCell>

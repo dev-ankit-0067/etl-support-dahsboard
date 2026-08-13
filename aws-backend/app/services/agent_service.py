@@ -11,7 +11,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 
 from ..config import get_settings
 from ..services import cloudwatch_service
-from ..services import jira_service
+from ..services import incidents_service
 
 log = logging.getLogger(__name__)
 
@@ -73,15 +73,17 @@ def fetch_emr_serverless_logs(job_run_id: str) -> str:
 
 
 @tool
-def create_jira_ticket(summary: str, description: str, priority: str = "Medium") -> str:
-    """Create a Jira issue for an ETL pipeline incident. Returns the created ticket key.
+def create_incident_ticket(summary: str, description: str, priority: str = "Medium") -> str:
+    """Create an incident ticket for an ETL pipeline issue. Returns the created ticket id/key.
+
+    Routed to the configured provider (Jira or ServiceNow) via INCIDENT_PROVIDER.
 
     Args:
         summary: Short one-line title (include severity, e.g. '[P1] pipeline: issue').
         description: Full incident description with root cause and remediation steps.
-        priority: Jira priority — one of Highest, High, Medium, Low.
+        priority: Priority — one of Highest, High, Medium, Low (mapped per provider).
     """
-    return jira_service.create_ticket(
+    return incidents_service.create_ticket(
         summary=summary,
         description=description,
         priority=priority,
@@ -126,16 +128,16 @@ Respond with a structured analysis in this exact format:
 **Remediation:** <numbered list of fix steps>
 **Details:** <full analysis with relevant log excerpts>"""
 
-_JIRA_CREATION_SYSTEM = """You are an expert AWS ETL pipeline operations engineer with access to CloudWatch and Jira.
+_JIRA_CREATION_SYSTEM = """You are an expert AWS ETL pipeline operations engineer with access to CloudWatch and an incident ticketing system.
 
 When given a resource identifier (a Glue job run ID, a Lambda function name, an EMR cluster ID, or an EMR Serverless job run ID):
 1. Call the available log-retrieval tool to fetch the CloudWatch logs for that resource.
 2. Analyse the logs: identify root cause, severity, and affected components.
-3. Call create_jira_ticket with:
+3. Call create_incident_ticket with:
    - summary: "[<SEVERITY>] <pipeline_name>: <one-line issue>"
    - description: full markdown incident report (error details, timestamps, root cause, remediation)
    - priority: P1→Highest, P2→High, P3→Medium, P4→Low
-4. Confirm the Jira ticket key and provide your full structured analysis."""
+4. Confirm the returned ticket id/key and provide your full structured analysis."""
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +195,7 @@ def run_jira_creation_agent(log_id: str, resource_type: str = "job") -> Dict[str
     llm = _get_chat_model()
     agent = create_agent(
         model=llm,
-        tools=[_log_tool(resource_type), create_jira_ticket],
+        tools=[_log_tool(resource_type), create_incident_ticket],
         system_prompt=_JIRA_CREATION_SYSTEM,
     )
 
@@ -202,10 +204,10 @@ def run_jira_creation_agent(log_id: str, resource_type: str = "job") -> Dict[str
     })
     output = result["messages"][-1].content
 
-    # Extract Jira key from the ToolMessage emitted by create_jira_ticket
+    # Extract the created ticket id/key from the ToolMessage emitted by create_incident_ticket
     jira_key: Optional[str] = None
     for msg in result["messages"]:
-        if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "create_jira_ticket":
+        if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "create_incident_ticket":
             jira_key = str(msg.content)
             break
 

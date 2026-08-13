@@ -84,6 +84,17 @@ class Settings(BaseSettings):
         description="HuggingFace model repo ID used by the agents (must support chat completions).",
     )
 
+    # ---- Incident provider selection ----
+    incident_provider: str = Field(
+        default="jira",
+        description="Which ticketing backend to use for incidents/RCA: 'jira' or 'servicenow'. "
+        "Selects the MCP server the backend spawns (env: INCIDENT_PROVIDER).",
+    )
+
+    @property
+    def incident_provider_name(self) -> str:
+        return (self.incident_provider or "jira").strip().lower()
+
     # ---- Jira Integration ----
     jira_url: Optional[str] = None
     jira_username: Optional[str] = None
@@ -103,6 +114,33 @@ class Settings(BaseSettings):
     jira_priority_mapping: dict = Field(
         default_factory=lambda: {"Highest": "P1", "High": "P2", "Medium": "P3", "Low": "P4"},
         description="Map Jira priority to severity"
+    )
+
+    # ---- ServiceNow Integration (Table API) ----
+    servicenow_instance: Optional[str] = Field(
+        default=None,
+        description="ServiceNow instance base URL, e.g. https://devXXXXX.service-now.com",
+    )
+    servicenow_user: Optional[str] = None
+    servicenow_password: Optional[str] = Field(
+        default=None, description="ServiceNow password or API token for basic auth."
+    )
+    servicenow_table: str = Field(default="incident", description="ServiceNow table to read/create incidents in.")
+    servicenow_project_field: str = Field(
+        default="u_project",
+        description="Incident field used to filter by the selected project value (empty disables filtering).",
+    )
+    servicenow_issue_priority_default: str = Field(default="3", description="Default ServiceNow priority (1-5) for created incidents.")
+    servicenow_priority_mapping: dict = Field(
+        default_factory=lambda: {"1": "P1", "2": "P2", "3": "P3", "4": "P4", "5": "P4"},
+        description="Map ServiceNow priority value to severity",
+    )
+    servicenow_status_mapping: dict = Field(
+        default_factory=lambda: {
+            "1": "Open", "2": "Investigating", "3": "Mitigating",
+            "6": "Resolved", "7": "Resolved", "8": "Resolved",
+        },
+        description="Map ServiceNow incident state value to incident status",
     )
 
     # ---- Cognito (auth) ----

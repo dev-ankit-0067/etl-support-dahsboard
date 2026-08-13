@@ -30,6 +30,8 @@ interface AuthContextValue {
   authRequired: boolean; // true once a Cognito pool/client is configured
   isAuthenticated: boolean;
   user: AuthUser | null;
+  /** Active incident/ticketing provider display name (e.g. "Jira", "ServiceNow"). */
+  incidentProviderLabel: string;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -68,6 +70,7 @@ function base(): string {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<CognitoConfig | null>(null);
+  const [incidentProviderLabel, setIncidentProviderLabel] = useState("Jira");
   const [tokens, setTokens] = useState<Tokens | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -140,6 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (c?.userPoolId && c?.clientId) {
           cfg = { region: c.region, userPoolId: c.userPoolId, clientId: c.clientId };
         }
+        if (!cancelled && data?.incidentProviderLabel) {
+          setIncidentProviderLabel(data.incidentProviderLabel);
+        }
       } catch {
         /* config unavailable → treat auth as not configured */
       }
@@ -191,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ loading, authRequired, isAuthenticated, user, login, logout }}
+      value={{ loading, authRequired, isAuthenticated, user, incidentProviderLabel, login, logout }}
     >
       {children}
     </AuthContext.Provider>

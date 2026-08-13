@@ -98,10 +98,17 @@ Loads from environment / `.env` (case-insensitive, extra ignored). Groups:
   (`Qwen/Qwen2.5-72B-Instruct`, used by the agentic tool-calling agent) and
   `huggingface_model_name` (`meta-llama/Llama-3.1-8B-Instruct`, used by the log-text analysis
   service).
-- **Jira:** `jira_url`, `jira_username`, `jira_api_token`, `jira_project_key` (`SCRUM`),
-  `use_jira_incidents=True`, `jira_issue_type` (`Bug`), plus `jira_status_mapping` and
-  `jira_priority_mapping` dictionaries used to translate Jira states/priorities into the
-  dashboard's incident status and P1–P4 severity.
+- **Incident provider:** `incident_provider` (`jira` | `servicenow`, default `jira`; env
+  `INCIDENT_PROVIDER`) — selects which MCP server the backend spawns for incidents/RCA/ticket
+  creation.
+- **Jira** (when `INCIDENT_PROVIDER=jira`): `jira_url`, `jira_username`, `jira_api_token`,
+  `jira_project_key` (`SCRUM`), `use_jira_incidents=True`, `jira_issue_type` (`Bug`), plus
+  `jira_status_mapping` and `jira_priority_mapping` dictionaries used to translate Jira
+  states/priorities into the dashboard's incident status and P1–P4 severity.
+- **ServiceNow** (when `INCIDENT_PROVIDER=servicenow`): `servicenow_instance`, `servicenow_user`,
+  `servicenow_password` (basic auth), `servicenow_table` (`incident`), `servicenow_project_field`
+  (`u_project`, empty disables project filtering), plus `servicenow_status_mapping` /
+  `servicenow_priority_mapping` (state/priority → status/severity).
 - **Cognito (auth):** `cognito_user_pool_id`, `cognito_client_id`, `cognito_region` (defaults to
   `aws_region`). When the pool + client are set, API auth is enforced; when unset, the API runs
   open (local-dev mode).
@@ -365,21 +372,57 @@ Fetches raw log events for Glue jobs, Lambdas, and EMR (on-EC2 + Serverless).
 > `logs:GetLogEvents`. Set `EMR_LOG_GROUP` (and optionally `EMR_SERVERLESS_LOG_GROUP`) to point at
 > the groups where your clusters/jobs ship logs.
 
-### `jira_service.py` — Jira-backed incidents & RCA
-- **`class JiraClient`** — singleton wrapper. `get_client()` lazily builds a `JIRA` client from
-  `jira_url` + basic auth (`jira_username`, `jira_api_token`), raising `ValueError` if unconfigured.
-- Mapping helpers: `_get_incident_age(created)`, `_map_priority_to_severity(priority)` (via
-  `jira_priority_mapping`, default P3), `_map_status_to_incident_status(status)` (via
-  `jira_status_mapping`, default Open).
-- `list_issues(days=30)` `@cached("short")` — JQL `project = <key> ORDER BY created DESC`.
-- `list_records(limit=50)` → `List[IncidentRecord]` — converts issues (owner = assignee,
-  pipeline = project name, domain = assignee/issue-type).
-- `summary()` → `IncidentSummary` — counts open, resolved-in-24h, and P1/P2/P3.
-- `create_ticket(summary, description, priority="Medium", issue_type=None)` → issue key.
-- `rca_lifecycle(days=30)` `@cached("medium")` → `RcaLifecycle` (average resolution time as the
-  "Resolve" stage; other stages 0 — Jira lacks the granular timeline).
-- `rca_repeat_incidents(days=30, top_n=10)` `@cached("medium")` → `List[RepeatIncident]` (pipelines
-  with ≥2 incidents, with last-seen + most-recent title as root cause).
+### Incidents & RCA — MCP-based provider (Jira **or** ServiceNow)
+
+Incident/RCA data comes from a ticketing backend selected at runtime by
+**`INCIDENT_PROVIDER`** (`jira` | `servicenow`, default `jira`). The backend is an **MCP client**
+that spawns the chosen provider's **MCP server** as a stdio subprocess and calls its tools. All
+provider-specific SDK/REST access lives inside the servers; the FastAPI process only aggregates
+already-normalized records. Switching providers is a config change — no code change.
+
+```
+routers/{incidents,overview,rca}  +  agent_service (create ticket)
+        │  (import)
+        ▼
+services/incidents_service.py   ── provider-agnostic aggregation (summary / list / RCA)
+        │  get_provider_client().call("list_incidents"/"create_incident", …)
+        ▼
+services/mcp_client.py          ── sync↔async bridge; persistent stdio ClientSession per provider
+        │  python -m app.mcp_servers.<provider>_server   (subprocess, stdio)
+        ▼
+app/mcp_servers/jira_server.py        (jira SDK)     ┐  each exposes the SAME two tools returning
+app/mcp_servers/servicenow_server.py  (Table API)    ┘  the SAME normalized Incident shape
+```
+
+**`app/mcp_servers/` — the MCP servers** (each a standalone `FastMCP` stdio server, runnable via
+`python -m app.mcp_servers.<name>`). Both expose two interchangeable tools:
+- `list_incidents(project, days) -> list[Incident]`
+- `create_incident(summary, description, priority, issue_type) -> {id, url}`
+
+where a normalized `Incident` is `{id, title, severity(P1–P4), status(Open/Investigating/Mitigating/
+Resolved), pipeline, domain, owner, createdAt, resolvedAt}`.
+- **`jira_server.py`** — owns `class JiraClient` (singleton `JIRA` client from `jira_url` + basic
+  auth) and the `jira_priority_mapping`/`jira_status_mapping` translation. `list_incidents` runs JQL
+  `project = <key> [AND labels = "<project>"] ORDER BY created DESC`.
+- **`servicenow_server.py`** — ServiceNow Table API (`/api/now/table/<table>`, basic auth). Maps the
+  `incident` table (`number`, `short_description`, `priority`, `state`, `assigned_to`,
+  `sys_created_on`, …) onto the same shape via `servicenow_priority_mapping`/`servicenow_status_mapping`;
+  filters on `servicenow_project_field`. `create_incident` maps Pn/priority names to ServiceNow 1–5.
+
+**`services/mcp_client.py`** — `StdioMcpClient` owns a persistent MCP `ClientSession` on a private
+event-loop thread (the subprocess stays up for the worker's life) and exposes a blocking `call(tool,
+args)` for the sync service layer. `get_provider_client()` returns a per-provider singleton keyed by
+`INCIDENT_PROVIDER`.
+
+**`services/incidents_service.py`** — provider-agnostic aggregation over the normalized records:
+- `_fetch(days=30)` `@cached("short")` — calls `list_incidents` with the active project.
+- `list_records(limit=50)` → `List[IncidentRecord]`; `summary()` → `IncidentSummary` (open,
+  resolved-24h, P1/P2/P3); `create_ticket(...)` → id/key/number.
+- `rca_lifecycle(days=30)` / `rca_repeat_incidents(days=30, top_n=10)` `@cached("medium")` — average
+  resolution time as the "Resolve" stage; pipelines with ≥2 incidents.
+
+> `services/jira_service.py` remains only as a thin backward-compat shim re-exporting
+> `incidents_service.*` (and `JiraClient` from the MCP server) for older imports.
 
 ---
 
@@ -414,8 +457,9 @@ Surfaced through **`routers/agent.py`** (`POST /agent/analysis`, `POST /agent/ji
 - **Tools:** `@tool fetch_cloudwatch_logs(job_id)` (Glue), `@tool fetch_lambda_logs(function_name)`
   (Lambda), `@tool fetch_emr_logs(cluster_id)` (EMR-on-EC2), `@tool
   fetch_emr_serverless_logs(job_run_id)` (EMR Serverless) — each wrapping the matching
-  `cloudwatch_service` fetch — plus `@tool create_jira_ticket(summary, description, priority)`
-  (wraps `jira_service.create_ticket`). `_log_tool(resource_type)` / `_resource_label(resource_type)`
+  `cloudwatch_service` fetch — plus `@tool create_incident_ticket(summary, description, priority)`
+  (wraps `incidents_service.create_ticket`, routed to Jira **or** ServiceNow per `INCIDENT_PROVIDER`).
+  `_log_tool(resource_type)` / `_resource_label(resource_type)`
   select the tool + prompt label via the `_LOG_TOOLS` / `_RESOURCE_LABELS` maps.
 - `_get_chat_model()` — `ChatHuggingFace(HuggingFaceEndpoint(repo_id=huggingface_model,
   task="conversational", max_new_tokens=4096, temperature=0.1))`.
@@ -425,8 +469,9 @@ Surfaced through **`routers/agent.py`** (`POST /agent/analysis`, `POST /agent/ji
 - `run_log_analysis_agent(log_id, resource_type="job")` — builds an agent with the resource-appropriate
   logs tool, returns `{log_id, type:"log", analysis, jira_key:None}`.
 - `run_jira_creation_agent(log_id, resource_type="job")` — agent with the logs tool + create-ticket
-  tool; extracts the created key from the `ToolMessage` for `create_jira_ticket`; returns
-  `{..., type:"jira", analysis, jira_key}`.
+  tool; extracts the created id/key from the `ToolMessage` for `create_incident_ticket`; returns
+  `{..., type:"jira", analysis, jira_key}` (response field names kept for API stability; the ticket
+  is created in whichever provider `INCIDENT_PROVIDER` selects).
 - `resource_type` ∈ `"job"` (Glue run id) · `"lambda"` (Lambda function name) · `"emr"` (EMR-on-EC2
   cluster/step id) · `"emr_serverless"` (EMR Serverless job run id).
 

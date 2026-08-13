@@ -16,6 +16,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 
 interface LogEvent {
@@ -70,6 +71,7 @@ export default function CloudWatchLogViewer({
   const [jiraResult, setJiraResult] = useState<{ issueKey: string; issueUrl?: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<"analysis" | "jira" | null>(null);
   const { toast } = useToast();
+  const { incidentProviderLabel } = useAuth();
 
   useEffect(() => {
     if (open) {
@@ -163,7 +165,7 @@ export default function CloudWatchLogViewer({
     setJiraResult(null);
     try {
       // Agentic workflow: the LangChain agent fetches the logs, analyses them,
-      // and creates the Jira ticket itself, returning the analysis + ticket key.
+      // and creates the ticket itself, returning the analysis + ticket key.
       const response = await apiFetch("/api/agents/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -171,26 +173,26 @@ export default function CloudWatchLogViewer({
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.detail || "Failed to create Jira ticket.");
+        throw new Error(payload?.detail || `Failed to create ${incidentProviderLabel} ticket.`);
       }
       const result = (await response.json()) as AgentAnalyzeResponse;
       if (result.analysis) setAnalysisResult(result.analysis);
       if (result.jira_key) {
         setJiraResult({ issueKey: result.jira_key });
         toast({
-          title: "Jira ticket created",
+          title: `${incidentProviderLabel} ticket created`,
           description: result.jira_key,
         });
       } else {
         toast({
           title: "Analysis complete",
-          description: "The agent did not return a Jira ticket key.",
+          description: `The agent did not return a ${incidentProviderLabel} ticket key.`,
           variant: "destructive",
         });
       }
     } catch (err) {
       toast({
-        title: "Jira ticket failed",
+        title: `${incidentProviderLabel} ticket failed`,
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -240,7 +242,7 @@ export default function CloudWatchLogViewer({
                 disabled={logs.length === 0 || actionLoading !== null}
                 className="h-8 text-xs"
               >
-                Log Jira ticket
+                Log {incidentProviderLabel} ticket
               </Button>
               <Button
                 size="sm"
@@ -307,8 +309,8 @@ export default function CloudWatchLogViewer({
                   )}
                   {jiraResult && (
                     <div className="rounded-md border border-slate-700 bg-slate-950 p-3">
-                      <p className="mb-1 text-xs uppercase tracking-[0.2em] text-slate-400">Jira ticket</p>
-                      <p className="text-sm">Issue key: <span className="font-medium">{jiraResult.issueKey}</span></p>
+                      <p className="mb-1 text-xs uppercase tracking-[0.2em] text-slate-400">{incidentProviderLabel} ticket</p>
+                      <p className="text-sm">Ticket ID: <span className="font-medium">{jiraResult.issueKey}</span></p>
                       {jiraResult.issueUrl && (
                         <p className="text-sm text-sky-300">
                           <a href={jiraResult.issueUrl} target="_blank" rel="noreferrer">View ticket</a>

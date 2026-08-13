@@ -19,6 +19,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AnalysisResult {
   log_id: string;
@@ -119,6 +120,7 @@ export default function LogAnalysisModal({
   error,
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const { incidentProviderLabel } = useAuth();
 
   const handleCopy = () => {
     if (!result?.analysis) return;
@@ -130,7 +132,7 @@ export default function LogAnalysisModal({
 
   const sections = result ? parseSections(result.analysis) : [];
   const title =
-    mode === "jira" ? "Log Analysis & Jira Ticket" : "Error Log Analysis";
+    mode === "jira" ? `Log Analysis & ${incidentProviderLabel} Ticket` : "Error Log Analysis";
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -183,7 +185,7 @@ export default function LogAnalysisModal({
                     {result.jira_key ? (
                       <>
                         <span className="text-xs text-slate-600">
-                          Jira ticket created:
+                          {incidentProviderLabel} ticket created:
                         </span>
                         <span className="font-mono font-semibold text-sm text-violet-700 bg-violet-100 border border-violet-300 px-2 py-0.5 rounded">
                           {result.jira_key}
@@ -191,7 +193,7 @@ export default function LogAnalysisModal({
                       </>
                     ) : (
                       <span className="text-xs text-slate-500">
-                        Jira ticket creation was not confirmed in the agent response.
+                        {incidentProviderLabel} ticket creation was not confirmed in the agent response.
                       </span>
                     )}
                   </div>

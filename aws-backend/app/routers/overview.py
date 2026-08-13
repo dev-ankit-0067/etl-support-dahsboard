@@ -16,9 +16,9 @@ from ..models.pipelines import LiveStatus
 from ..services import glue_service
 
 try:
-    from ..services import jira_service
+    from ..services import incidents_service
 except ImportError:
-    jira_service = None  # type: ignore
+    incidents_service = None  # type: ignore
 
 log = logging.getLogger(__name__)
 
@@ -38,11 +38,11 @@ def kpis() -> OverviewKpis:
         live = LiveStatus(running=0, failed=0, timedOut=0, delayed=0, waitingUpstream=0)
         failed_recent = []
     
-    if jira_service:
+    if incidents_service:
         try:
-            inc_summary = jira_service.summary()
+            inc_summary = incidents_service.summary()
         except Exception as exc:
-            log.error("Jira summary failed: %s", exc)
+            log.error("Incident summary failed: %s", exc)
             from ..models.incidents import IncidentSummary
             inc_summary = IncidentSummary(open=0, acknowledged=0, resolved24h=0, p1=0, p2=0, p3=0)
     else:
@@ -112,11 +112,11 @@ def failed_jobs() -> List[FailedJob]:
 
 @router.get("/active-incidents", response_model=List[ActiveIncident])
 def active_incidents() -> List[ActiveIncident]:
-    if jira_service:
+    if incidents_service:
         try:
-            records = jira_service.list_records()
+            records = incidents_service.list_records()
         except Exception as exc:
-            log.error("Jira list_records failed: %s", exc)
+            log.error("Incident list_records failed: %s", exc)
             records = []
     else:
         records = []

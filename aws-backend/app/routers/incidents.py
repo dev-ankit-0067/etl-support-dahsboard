@@ -11,9 +11,9 @@ from ..models.incidents import (
 )
 
 try:
-    from ..services import jira_service
+    from ..services import incidents_service
 except ImportError:
-    jira_service = None  # type: ignore
+    incidents_service = None  # type: ignore
 
 log = logging.getLogger(__name__)
 
@@ -22,13 +22,13 @@ router = APIRouter(prefix="/incidents", tags=["incidents"])
 
 @router.get("/summary", response_model=IncidentSummary)
 def summary() -> IncidentSummary:
-    if jira_service is None:
-        raise HTTPException(status_code=500, detail="Jira service not available")
+    if incidents_service is None:
+        raise HTTPException(status_code=500, detail="Incident service not available")
     try:
-        return jira_service.summary()
+        return incidents_service.summary()
     except Exception as exc:
-        log.error("Jira summary failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Jira error: {str(exc)}")
+        log.error("Incident summary failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Incident provider error: {str(exc)}")
 
 
 @router.get("/mttr-trend", response_model=List[MttrTrendPoint])
@@ -45,10 +45,10 @@ def distribution() -> List[IncidentDistributionItem]:
 
 @router.get("/list", response_model=List[IncidentRecord])
 def listing() -> List[IncidentRecord]:
-    if jira_service is None:
-        raise HTTPException(status_code=500, detail="Jira service not available")
+    if incidents_service is None:
+        raise HTTPException(status_code=500, detail="Incident service not available")
     try:
-        return jira_service.list_records()
+        return incidents_service.list_records()
     except Exception as exc:
-        log.error("Jira list_records failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Jira error: {str(exc)}")
+        log.error("Incident list_records failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Incident provider error: {str(exc)}")
