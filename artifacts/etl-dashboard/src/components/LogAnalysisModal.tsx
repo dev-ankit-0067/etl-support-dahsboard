@@ -18,7 +18,7 @@ import {
   ScrollText,
   ExternalLink,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, Fragment, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface AnalysisResult {
@@ -76,6 +76,89 @@ function severityClasses(text: string): string {
   return "bg-blue-100 text-blue-700 border border-blue-300";
 }
 
+// ---- Lightweight markdown renderer ---------------------------------------
+// The LLM emits markdown (bold, inline code, bullet/numbered lists). We render
+// the common subset without pulling in a markdown library. Output is built from
+// React nodes (no dangerouslySetInnerHTML), so LLM text can't inject HTML.
+
+const BULLET_RE = /^\s*[-*•]\s+(.*)$/;
+const NUMBERED_RE = /^\s*(\d+)[.)]\s+(.*)$/;
+
+function renderInline(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  // **bold** | `code` | *italic*
+  const regex = /(\*\*([^*]+)\*\*|`([^`]+)`|\*([^*\n]+)\*)/g;
+  let last = 0;
+  let key = 0;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    if (m[2] !== undefined) {
+      nodes.push(<strong key={key++} className="font-semibold text-slate-900">{m[2]}</strong>);
+    } else if (m[3] !== undefined) {
+      nodes.push(
+        <code key={key++} className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-800">
+          {m[3]}
+        </code>,
+      );
+    } else if (m[4] !== undefined) {
+      nodes.push(<em key={key++}>{m[4]}</em>);
+    }
+    last = regex.lastIndex;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
+function MarkdownLite({ text, className }: { text: string; className?: string }) {
+  const lines = text.split(/\r?\n/);
+  const blocks: ReactNode[] = [];
+  let i = 0;
+  let key = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (BULLET_RE.test(line)) {
+      const items: ReactNode[] = [];
+      while (i < lines.length && BULLET_RE.test(lines[i])) {
+        items.push(<li key={key++}>{renderInline(lines[i].replace(BULLET_RE, "$1"))}</li>);
+        i++;
+      }
+      blocks.push(<ul key={key++} className="list-disc space-y-0.5 pl-4">{items}</ul>);
+      continue;
+    }
+    if (NUMBERED_RE.test(line)) {
+      const items: ReactNode[] = [];
+      while (i < lines.length && NUMBERED_RE.test(lines[i])) {
+        items.push(<li key={key++}>{renderInline(lines[i].replace(NUMBERED_RE, "$2"))}</li>);
+        i++;
+      }
+      blocks.push(<ol key={key++} className="list-decimal space-y-0.5 pl-4">{items}</ol>);
+      continue;
+    }
+    if (line.trim() === "") {
+      i++;
+      continue;
+    }
+    // Gather consecutive plain lines into one paragraph (preserving soft breaks).
+    const para: string[] = [];
+    while (i < lines.length && lines[i].trim() !== "" && !BULLET_RE.test(lines[i]) && !NUMBERED_RE.test(lines[i])) {
+      para.push(lines[i]);
+      i++;
+    }
+    blocks.push(
+      <p key={key++}>
+        {para.map((l, idx) => (
+          <Fragment key={idx}>
+            {idx > 0 && <br />}
+            {renderInline(l.replace(/^#{1,6}\s+/, ""))}
+          </Fragment>
+        ))}
+      </p>,
+    );
+  }
+  return <div className={className}>{blocks}</div>;
+}
+
 function SectionCard({ section }: { section: Section }) {
   const icon = SECTION_ICONS[section.title] ?? <FileText className="h-3.5 w-3.5" />;
   const isSeverity = section.title === "Severity";
@@ -95,14 +178,16 @@ function SectionCard({ section }: { section: Section }) {
         </span>
       ) : isDetails ? (
         <ScrollArea className="max-h-40">
-          <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed pr-3">
-            {section.content}
-          </p>
+          <MarkdownLite
+            text={section.content}
+            className="space-y-1.5 pr-3 text-xs leading-relaxed text-slate-700 [&_code]:break-all"
+          />
         </ScrollArea>
       ) : (
-        <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
-          {section.content}
-        </p>
+        <MarkdownLite
+          text={section.content}
+          className="space-y-1.5 text-xs leading-relaxed text-slate-700"
+        />
       )}
     </div>
   );
