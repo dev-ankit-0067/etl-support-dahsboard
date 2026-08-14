@@ -66,10 +66,14 @@ Forwards `Host`, `X-Forwarded-For`, `X-Forwarded-Proto`.
 Least-privilege, read-mostly policy the FastAPI backend needs:
 - **GlueRead** — `glue:GetJobs/GetJob/GetJobRuns/GetJobRun`
 - **LambdaRead** — `lambda:ListFunctions/GetFunction/ListTags`
+- **EmrRead / EmrServerlessRead** — `elasticmapreduce:*` (list/describe clusters/steps),
+  `emr-serverless:*` (list/get applications/job runs)
+- **TagRead** — `tag:GetResources/GetTagKeys/GetTagValues` (project tag filtering)
+- **S3LogsRead** — `s3:GetObject/ListBucket` (custom S3 log source, `S3_LOG_BUCKET`)
 - **CloudWatchRead** — `cloudwatch:GetMetricStatistics/GetMetricData/ListMetrics`,
   `logs:DescribeLogStreams/GetLogEvents`
 - **IncidentsRead** — `ssm-incidents:ListIncidentRecords/GetIncidentRecord/ListTimelineEvents`
-  *(present for a future SSM Incident Manager source; the current code uses Jira instead)*
+  *(present for a future SSM Incident Manager source; the current code uses the MCP-based provider — Jira/ServiceNow)*
 - **CostExplorerRead** — `ce:GetCostAndUsage/GetCostForecast`,
   `budgets:DescribeBudgets/ViewBudget`, `sts:GetCallerIdentity`
 
@@ -85,6 +89,7 @@ see `aws.py`.
 | boto | `BOTO_MAX_ATTEMPTS`, `BOTO_RETRY_MODE`, `BOTO_CONNECT_TIMEOUT`, `BOTO_READ_TIMEOUT` |
 | Cache | `CACHE_TTL_SHORT/MEDIUM/LONG` |
 | Domain | `GLUE_JOB_NAME_FILTER`, `LAMBDA_FUNCTION_TAG_KEY/VALUE`, `COST_EXPLORER_TAG_KEY`, `SLA_BREACH_MINUTES` |
+| Log sources | `EMR_LOG_GROUP`, `EMR_SERVERLESS_LOG_GROUP`, `S3_LOG_BUCKET` (custom S3 log source) |
 | Incident provider | `INCIDENT_PROVIDER` (`jira` \| `servicenow`, default `jira`) — selects the MCP server used for incidents/RCA/ticket creation |
 | Jira (provider=jira) | `JIRA_URL`, `JIRA_USERNAME`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY`, `JIRA_ISSUE_TYPE`, `USE_JIRA_INCIDENTS` |
 | ServiceNow (provider=servicenow) | `SERVICENOW_INSTANCE`, `SERVICENOW_USER`, `SERVICENOW_PASSWORD`, `SERVICENOW_TABLE`, `SERVICENOW_PROJECT_FIELD` |

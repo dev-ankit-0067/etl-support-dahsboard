@@ -59,13 +59,9 @@ Builds and configures the app:
    - `health.router` at the **root** (`/healthz`, `/readyz`) — public.
    - `meta.router` under `/api` (`/api/config`) — public (the SPA needs it before login).
    - The data routers under `settings.api_prefix` (default `/api`) — `overview`, `pipelines`,
-     `lambdas`, `incidents`, `costs`, `rca`, `cloudwatch`, `agents` — each included with
-     `dependencies=[Depends(require_auth)]`, so a valid Cognito token is required when auth is
-     configured (see [Authentication](#authentication--appauthpy)).
-   - *(Note: `routers/agent.py` — the `/agent/*` HuggingFace + Jira routes the frontend actually
-     calls — exists and is fully implemented but is not auto-included in `main.py`'s list; it is
-     the log-text-in / RCA-out variant. `routers/agents.py` — the fully agentic job-ID variant — is
-     the one wired in.)*
+     `lambdas`, `emr`, `emr_serverless`, `incidents`, `costs`, `rca`, `cloudwatch`, `agents`,
+     `s3_logs` — each included with `dependencies=[Depends(require_auth)]`, so a valid Cognito token
+     is required when auth is configured (see [Authentication](#authentication--appauthpy)).
 5. Registers three global exception handlers (see below).
 6. Module-level `app = create_app()` is the ASGI entrypoint (`app.main:app`).
 
@@ -94,10 +90,10 @@ Loads from environment / `.env` (case-insensitive, extra ignored). Groups:
   `sla_breach_minutes=60`.
 - **EMR log groups:** `emr_log_group` (EMR-on-EC2, no default), `emr_serverless_log_group`
   (default `/aws/emr-serverless`).
+- **S3 log source:** `s3_log_bucket` (env `S3_LOG_BUCKET`, no default) — bucket holding custom logs
+  at `s3://<bucket>/<project>/<run-id>.log`.
 - **HuggingFace (LLM):** `huggingface_api_token`, `huggingface_model`
-  (`Qwen/Qwen2.5-72B-Instruct`, used by the agentic tool-calling agent) and
-  `huggingface_model_name` (`meta-llama/Llama-3.1-8B-Instruct`, used by the log-text analysis
-  service).
+  (`Qwen/Qwen2.5-72B-Instruct`, used by the agentic tool-calling agent).
 - **Incident provider:** `incident_provider` (`jira` | `servicenow`, default `jira`; env
   `INCIDENT_PROVIDER`) — selects which MCP server the backend spawns for incidents/RCA/ticket
   creation.
@@ -191,10 +187,10 @@ without threading a parameter through every function:
 - **IAM:** adds `tag:GetResources` / `GetTagKeys` / `GetTagValues` (in `iam-policy.json` + deploy role).
 
 ### `overview.py` — `/overview`, tag `overview`
-Composes Glue + Jira data for the Executive Overview page.
+Composes Glue + incident data for the Executive Overview page.
 - `GET /overview/kpis` → `OverviewKpis`. Pulls jobs, live status, recent failures from
-  `glue_service`; incident counts from `jira_service`. Derives `healthy/degraded/failed`,
-  `slaCompliancePercent = healthy/total*100`. Degrades gracefully to zeros if Glue/Jira fail.
+  `glue_service`; incident counts from `incidents_service`. Derives `healthy/degraded/failed`,
+  `slaCompliancePercent = healthy/total*100`. Degrades gracefully to zeros if Glue/incidents fail.
 - `GET /overview/health-distribution` → `HealthDistribution`. Buckets `glue_service.recent_runs()`
   by domain into healthy/degraded/failed.
 - `GET /overview/job-status-trend` → `List[JobStatusPoint]` (hourly buckets, from Glue).
@@ -222,11 +218,17 @@ Composes Glue + Jira data for the Executive Overview page.
   `emr_serverless_service`.
 
 ### `incidents.py` — `/incidents`, tag `incidents`
-Backed by Jira (import guarded — if `jira_service` import fails the routes 500 cleanly).
+Backed by `incidents_service` (the MCP-based provider — Jira/ServiceNow; import guarded, routes 500
+cleanly on failure).
 - `GET /incidents/summary` → `IncidentSummary`
 - `GET /incidents/mttr-trend` → `List[MttrTrendPoint]` (**returns `[]`** — not implemented)
 - `GET /incidents/distribution` → `List[IncidentDistributionItem]` (**returns `[]`**)
 - `GET /incidents/list` → `List[IncidentRecord]`
+
+### `s3_logs.py` — `/s3` + `/logs/s3`, tag `s3`
+Custom S3 log source. Backed by `s3_logs_service`.
+- `GET /s3/runs` → log objects under `s3://<bucket>/<project>/` as run records (project-scoped).
+- `GET /logs/s3/{identifier}` → the lines of a single `<identifier>.log` object.
 
 ### `costs.py` — `/costs`, tag `costs`
 - `GET /costs/kpis` → `CostKpis`
@@ -245,20 +247,13 @@ Jira-backed (guarded import).
 - `GET /logs/emr/{cluster_id}?limit=1..1000` → EMR-on-EC2 cluster/step log events
 - `GET /logs/emr-serverless/{job_run_id}?limit=1..1000` → EMR Serverless job-run log events
 
-### `agents.py` — `/agents`, tag `agents`  *(wired into `main.py`)*
-Fully agentic LangChain endpoint.
-- `POST /agents/analyze` with body `AgentRequest{ log_id, type: "log"|"jira" }` →
-  `AgentResponse{ log_id, type, analysis, jira_key? }`.
-  - `type="log"` → `agent_service.run_log_analysis_agent(log_id)`
-  - `type="jira"` → `agent_service.run_jira_creation_agent(log_id)`
-
-### `agent.py` — `/agent`, tag `agent`  *(the routes the current UI calls)*
-Log-text-in variant used by `CloudWatchLogViewer`.
-- `POST /agent/analysis` with `LogAnalysisRequest` → `LogAnalysisResponse` (RCA text + model name).
-  Delegates to `services/agent.analyze_log_text()`.
-- `POST /agent/jira` with `JiraTicketRequest` → `JiraTicketResponse{ issueKey, issueUrl?, summary }`.
-  Builds a summary/description (optionally appends the RCA), calls
-  `services/agent.create_jira_issue()`, and constructs the browse URL from `jira_url`.
+### `agents.py` — `/agents`, tag `agents`  *(the only agent router; wired into `main.py`)*
+Fully agentic LangChain endpoint — used by every AI button in the UI.
+- `POST /agents/analyze` with body `AgentRequest{ log_id, type: "log"|"jira", resource_type }` →
+  `AgentResponse{ log_id, type, analysis, jira_key? }`. `resource_type` ∈
+  `job|lambda|emr|emr_serverless|s3`.
+  - `type="log"` → `agent_service.run_log_analysis_agent(log_id, resource_type)`
+  - `type="jira"` → `agent_service.run_jira_creation_agent(log_id, resource_type)`
 
 ---
 
@@ -372,6 +367,19 @@ Fetches raw log events for Glue jobs, Lambdas, and EMR (on-EC2 + Serverless).
 > `logs:GetLogEvents`. Set `EMR_LOG_GROUP` (and optionally `EMR_SERVERLESS_LOG_GROUP`) to point at
 > the groups where your clusters/jobs ship logs.
 
+### `s3_logs_service.py` — custom S3 log source
+Reads logs from `s3://<S3_LOG_BUCKET>/<project>/<run-id>.log` (not CloudWatch). The project is the
+active project tag value (X-Project header via `tags_service.active_project()`).
+- `list_runs(limit=500)` `@cached("short")` — lists `.log` objects under the active project's prefix
+  (all prefixes when project is `all`); returns `{id, runId, project, lastModified, sizeBytes}[]`
+  sorted newest-first. `id` is the object key without `.log` (e.g. `poc/run-123`).
+- `get_logs(identifier, limit=1000)` — reads `<identifier>.log`, returns the standard
+  `{key, logGroup, events[], eventCount, timestamp}` envelope (one event per line). Rejects `..`
+  (path traversal) and returns a "not configured" envelope when `S3_LOG_BUCKET` is unset.
+- `get_logs_text(identifier, limit=2000)` — the same content as plain text (used by the agent tool).
+
+> Needs `S3_LOG_BUCKET` set and `s3:GetObject` / `s3:ListBucket` IAM (added to the task-role policy).
+
 ### Incidents & RCA — MCP-based provider (Jira **or** ServiceNow)
 
 Incident/RCA data comes from a ticketing backend selected at runtime by
@@ -421,43 +429,27 @@ args)` for the sync service layer. `get_provider_client()` returns a per-provide
 - `rca_lifecycle(days=30)` / `rca_repeat_incidents(days=30, top_n=10)` `@cached("medium")` — average
   resolution time as the "Resolve" stage; pipelines with ≥2 incidents.
 
-> `services/jira_service.py` remains only as a thin backward-compat shim re-exporting
-> `incidents_service.*` (and `JiraClient` from the MCP server) for older imports.
-
 ---
 
 ## AI agents
 
-Two distinct implementations, both HuggingFace-backed. **Which one the frontend actually reaches
-depends on which button is pressed** (see [04-frontend.md](./04-frontend.md#ai-button--endpoint--agent-mapping)):
+A single HuggingFace-backed **LangChain tool-calling agent**. Every AI button in the UI routes to it
+via `/api/agents/analyze` (see [04-frontend.md](./04-frontend.md#ai-button--endpoint--agent-mapping)):
 
-| Frontend button | Endpoint | Router | Service | Wired in `main.py`? |
-|-----------------|----------|--------|---------|---------------------|
-| Overview row **Get RCA** / **Log Jira ticket** | `POST /api/agents/analyze` | `routers/agents.py` | `agent_service.py` (LangChain, tool-calling) | ✅ Yes |
-| Log-viewer **RCA Analysis** | `POST /api/agents/analyze` `{type:"log"}` | `routers/agents.py` | `agent_service.py` | ✅ Yes |
-| Log-viewer **Log Jira ticket** | `POST /api/agents/analyze` `{type:"jira"}` | `routers/agents.py` | `agent_service.py` | ✅ Yes |
+| Frontend button | Endpoint | Router | Service |
+|-----------------|----------|--------|---------|
+| Row **Get RCA** / **Log ticket** | `POST /api/agents/analyze` | `routers/agents.py` | `agent_service.py` |
+| Log-viewer **RCA Analysis** | `POST /api/agents/analyze` `{type:"log"}` | `routers/agents.py` | `agent_service.py` |
+| Log-viewer **Log ticket** | `POST /api/agents/analyze` `{type:"jira"}` | `routers/agents.py` | `agent_service.py` |
 
-Every AI button in the UI now routes to the **LangChain agentic workflow** (`/api/agents/analyze`).
-The alternative single-shot service (`routers/agent.py` → `services/agent.py`, `/api/agent/*`) is
-still present but **not registered in `main.py`**, so it is currently unused.
-
-### `services/agent.py` — single-shot log-text analysis (used by the current UI)
-- `ANALYSIS_PROMPT` — a `ChatPromptTemplate` instructing the model to find the root cause and next
-  steps.
-- `_build_chat_model()` — `ChatHuggingFace(HuggingFaceEndpoint(repo_id=huggingface_model_name,
-  task="conversational", max_new_tokens=512, temperature=0.2))`; raises if the token is unset.
-- `analyze_log_text(log_text, resource_type, job_id?, job_name?)` → RCA string. Formats the prompt
-  with resource label ("Lambda function"/"Glue job") and invokes the model.
-- `create_jira_issue(summary, description, issue_type?)` → creates a Jira issue via `JiraClient`
-  and returns the issue object.
-
-Surfaced through **`routers/agent.py`** (`POST /agent/analysis`, `POST /agent/jira`).
+> The old single-shot log-text-in service (`routers/agent.py` → `services/agent.py`, `/api/agent/*`)
+> was unmounted dead code and has been removed.
 
 ### `services/agent_service.py` — tool-calling LangChain agent
 - **Tools:** `@tool fetch_cloudwatch_logs(job_id)` (Glue), `@tool fetch_lambda_logs(function_name)`
   (Lambda), `@tool fetch_emr_logs(cluster_id)` (EMR-on-EC2), `@tool
-  fetch_emr_serverless_logs(job_run_id)` (EMR Serverless) — each wrapping the matching
-  `cloudwatch_service` fetch — plus `@tool create_incident_ticket(summary, description, priority)`
+  fetch_emr_serverless_logs(job_run_id)` (EMR Serverless), `@tool fetch_s3_logs(run_id)` (custom S3
+  log via `s3_logs_service`) — plus `@tool create_incident_ticket(summary, description, priority)`
   (wraps `incidents_service.create_ticket`, routed to Jira **or** ServiceNow per `INCIDENT_PROVIDER`).
   `_log_tool(resource_type)` / `_resource_label(resource_type)`
   select the tool + prompt label via the `_LOG_TOOLS` / `_RESOURCE_LABELS` maps.
@@ -473,7 +465,7 @@ Surfaced through **`routers/agent.py`** (`POST /agent/analysis`, `POST /agent/ji
   `{..., type:"jira", analysis, jira_key}` (response field names kept for API stability; the ticket
   is created in whichever provider `INCIDENT_PROVIDER` selects).
 - `resource_type` ∈ `"job"` (Glue run id) · `"lambda"` (Lambda function name) · `"emr"` (EMR-on-EC2
-  cluster/step id) · `"emr_serverless"` (EMR Serverless job run id).
+  cluster/step id) · `"emr_serverless"` (EMR Serverless job run id) · `"s3"` (S3 log identifier).
 
 Surfaced through **`routers/agents.py`** (`POST /agents/analyze`).
 
@@ -504,11 +496,8 @@ Exact field lists are in [06-api-reference.md](./06-api-reference.md).
 
 ## Notable implementation details / gotchas
 
-- `config.py` declares `huggingface_api_token` **twice** and defines two model settings
-  (`huggingface_model` for the agentic agent, `huggingface_model_name` for the single-shot service).
-- `routers/agent.py` (the `/agent/*` routes the UI calls) is **not** in `main.py`'s include list,
-  while `routers/agents.py` (`/agents/*`) **is**. Verify wiring before relying on either in a new
-  deployment.
+- `config.py` declares `huggingface_api_token` **twice** and still defines a leftover
+  `huggingface_model_name` alongside the active `huggingface_model` (only the latter is used now).
 - `incidents` MTTR-trend and distribution endpoints are intentional stubs returning `[]`.
 - `cloudwatch_service.get_job_logs` hard-codes the Glue output log group and includes `print()`
   debug output.

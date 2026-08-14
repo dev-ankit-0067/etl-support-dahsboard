@@ -66,15 +66,13 @@ called by the frontend via plain `fetch`).
 → FastAPI `costs.router` → `costs_service.service_trend()` → Cost Explorer per-service trends.
 
 ### An AI agent flow
-`CloudWatchLogViewer` "RCA Analysis" button → `POST /api/agent/analysis` with raw log text →
-FastAPI `agent.router` → `services/agent.analyze_log_text()` → LangChain + HuggingFace →
-structured RCA string returned to the modal.
-
-`POST /api/agent/jira` → same, then `create_jira_issue()` opens a ticket and returns its key/URL.
-
-There is also a **fully agentic** variant, `POST /api/agents/analyze`, which takes only a Glue job
-run ID and lets a LangChain tool-calling agent fetch the logs itself and (optionally) create the
-ticket — see [02-backend-python.md](./02-backend-python.md#ai-agents).
+The **RCA Analysis** / **Log ticket** buttons → `POST /api/agents/analyze` with a resource identifier
+(and `resource_type`) → FastAPI `agents.router` → `agent_service.run_log_analysis_agent()` /
+`run_jira_creation_agent()` → a LangChain tool-calling agent fetches the logs itself (Glue/Lambda/
+EMR/EMR-Serverless via CloudWatch, or S3 via `fetch_s3_logs`), the HuggingFace LLM produces a
+structured RCA, and for the ticket flow `create_incident_ticket` opens a ticket via the configured
+incident provider (Jira/ServiceNow through the MCP layer). See
+[02-backend-python.md](./02-backend-python.md#ai-agents).
 
 ## 4. Monorepo layout & build
 

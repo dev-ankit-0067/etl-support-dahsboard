@@ -92,6 +92,22 @@ Reuse the `PipelineRun` / `PipelineHistoryItem` shapes. `cluster` / `application
 name. Needs EMR/EMR-Serverless read IAM (`elasticmapreduce:*`, `emr-serverless:*` — see
 `aws-backend/iam-policy.json`). Cost is not exposed by these APIs, so `costPerRun`/`cost` are `0`.
 
+---
+
+## S3 logs  (custom log source, FastAPI only)
+
+Logs stored at `s3://<S3_LOG_BUCKET>/<project>/<run-id>.log`. Listing is scoped by the selected
+project (X-Project header); when project is `all`, every prefix is listed.
+
+| Method | Path | Backend | Response type |
+|--------|------|---------|---------------|
+| GET | `/s3/runs` | FastAPI ✅ | `{ id, runId, project, lastModified, sizeBytes }[]` — one row per `.log` object (id = object key without `.log`) |
+| GET | `/logs/s3/{identifier}` | FastAPI ✅ (`limit` 1–5000) | `{ key, logGroup, events[], eventCount, timestamp }` — one event per line |
+
+`identifier` is the object key without the `.log` suffix (e.g. `poc/run-123`), so it already carries
+the project. Needs `S3_LOG_BUCKET` set and `s3:GetObject`/`s3:ListBucket` IAM. Path traversal (`..`)
+is rejected.
+
 **`LambdaKpis`** — `totalFunctions, healthy, withErrors, throttled, avgDurationMs,
 coldStartsPercent, totalInvocations24h`
 **`LambdaInvocation`** — `id, functionName, status, startTime, endTime, duration, costPerRun`
@@ -184,27 +200,20 @@ Each `event` = `{ timestamp, message, stream }`. Errors return an `{ …, error,
 
 ## AI Agents  (FastAPI only)
 
-### Log-text-in variant — `routers/agent.py`  (present but not mounted in `main.py`; unused by the UI)
-
-**`POST /agent/analysis`**
-Request `LogAnalysisRequest` — `logText` (required), `jobId?`, `jobName?`,
-`resourceType: "job"|"lambda"`.
-Response `LogAnalysisResponse` — `summary, rca?, insights?, model?`.
-
-**`POST /agent/jira`**
-Request `JiraTicketRequest` — `summary?`, `description` (required), `rca?`, `jobId?`, `jobName?`,
-`resourceType`, `issueType?`.
-Response `JiraTicketResponse` — `issueKey, issueUrl?, summary?`.
-
-### Fully-agentic variant — `routers/agents.py`  (wired into `main.py`; used by every AI button in the UI)
+### Fully-agentic — `routers/agents.py`  (wired into `main.py`; used by every AI button in the UI)
 
 **`POST /agents/analyze`**
 Request `AgentRequest` — `log_id` (identifier interpreted per `resource_type`), `type: "log"|"jira"`,
-`resource_type: "job"|"lambda"|"emr"|"emr_serverless"` (default `"job"`). The `log_id` is a Glue run
-id / Lambda function name / EMR cluster (or step) id / EMR Serverless job run id respectively.
+`resource_type: "job"|"lambda"|"emr"|"emr_serverless"|"s3"` (default `"job"`). The `log_id` is a Glue
+run id / Lambda function name / EMR cluster (or step) id / EMR Serverless job run id / S3 log
+identifier (object key without `.log`) respectively.
 Response `AgentResponse` — `log_id, type, analysis, jira_key?`.
 - `type="log"` → fetch logs (per `resource_type`) → LLM analysis.
-- `type="jira"` → fetch logs → LLM analysis → create Jira ticket → return analysis + key.
+- `type="jira"` → fetch logs → LLM analysis → create a ticket in the configured provider
+  (Jira/ServiceNow) → return analysis + ticket id in `jira_key`.
+
+> The single-shot log-text routes (`routers/agent.py` → `services/agent.py`, `POST /agent/*`) were
+> unmounted dead code and have been removed; every AI button uses `/agents/analyze`.
 
 The `analysis` string follows the structured format (`**Summary:** … **Severity:** … **Root
 Cause:** … **Remediation:** …`) that `LogAnalysisModal.parseSections()` renders. See also

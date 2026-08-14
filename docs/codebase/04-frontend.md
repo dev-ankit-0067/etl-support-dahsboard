@@ -172,23 +172,36 @@ The chrome shared by every page:
   `/incidents`, `Cost Insights` `/costs`) using wouter `Link`; active item highlighted via
   `useLocation()`.
 - **Top project bar** — centered `Projects:` `Select` bound to `AccountContext` (real tag filter).
-- **Header** — a search input, a "Last refreshed" indicator, bell/settings icon buttons, and (when
-  auth is required) the signed-in user + a **Sign out** button.
+- **Header** — a **search button** that opens the command palette (also bound to `⌘K` / `Ctrl+K`;
+  the hint glyph is platform-aware), and (when auth is required) the signed-in user + a **Sign out**
+  button. *(The previous static "Last refreshed" text and the non-functional bell/settings icons were
+  removed.)*
 - **Main** — scrollable content area rendering `{children}`; shows a **blocking loading overlay**
   (spinner + "Loading {project}…") while `AccountContext.projectLoading` is set, i.e. during a
   project switch.
 
+### `components/CommandPalette.tsx` — global command palette
+A `cmdk`-based `CommandDialog` opened from the header search button or `⌘K`/`Ctrl+K`. Fuzzy-searches
+grouped items: **Pages** (navigate to `/`, `/incidents`, `/costs`), **Incidents** (live, from
+`useGetActiveIncidents` — jumps to the Incidents page), **Jobs** (live, from `useGetPipelineRuns` —
+jumps to Overview), and **Actions** (Refresh dashboard data → `queryClient.invalidateQueries()`, Sign
+out → `logout`). The live-data hooks live in a child rendered only while the dialog is open, so they
+don't fetch until the palette is invoked.
+
 ## Pages
 
 ### `executive-overview.tsx` (~1000 lines — the richest page)
-A **resource-type dropdown** switches the KPI tiles + runs table between four AWS compute types:
-**Glue** (default), **Lambda**, **EMR**, **EMR Serverless**. Glue uses `useGetPipelineRuns()`; the
-other three load `/api/{lambdas|emr|emr-serverless}/runs` on demand. A `RESOURCE_CONFIG` map drives
-the per-type labels/endpoints, `AGENT_RESOURCE` maps the UI type → backend `resource_type`
-(`glue`→`job`), and runs are normalised to a common `{id, name, status, …}` shape so one code path
-renders all four. Each row expands to a history subsection (`/api/{…}/history/:name`) whose
-**Analyze logs / RCA / Log Jira ticket** buttons open the log viewer / agentic flow with the right
-`resource_type`. Changing the resource dropdown (or the date range) shows a **blocking loading
+A **resource-type dropdown** switches the KPI tiles + runs table between five sources:
+**Glue** (default), **Lambda**, **EMR**, **EMR Serverless**, and **S3**. Glue uses
+`useGetPipelineRuns()`; the others load `/api/{lambdas|emr|emr-serverless|s3}/runs` on demand. A
+`RESOURCE_CONFIG` map drives the per-type labels/endpoints, `AGENT_RESOURCE` maps the UI type →
+backend `resource_type` (`glue`→`job`, `s3`→`s3`), and the four compute types normalise to a common
+`{id, name, status, …}` shape so one code path renders them. Each row expands to a history subsection
+(`/api/{…}/history/:name`) whose **Analyze logs / RCA / Log ticket** buttons open the log viewer /
+agentic flow with the right `resource_type`. **S3** is rendered by a dedicated `S3LogsSection` (an
+adapted list of log files under `s3://<bucket>/<project>/` — Run ID · Project · Last Modified · Size,
+with the same three actions per row — since S3 logs have no run status/cost). Changing the resource
+dropdown (or the date range) shows a **blocking loading
 overlay** (`resourceLoading`) covering the whole page until data is ready — real for a resource
 switch (awaits the `/runs` fetch), and a brief ~400ms overlay for the client-side date-range filter.
 
@@ -238,10 +251,9 @@ The two buttons **inside** the `CloudWatchLogViewer` modal now target the **same
 | **RCA Analysis** | `/api/agents/analyze` `{ log_id, type:"log" }` | LangChain agent (`agents.py` → `agent_service.run_log_analysis_agent`) | ✅ |
 | **Log Jira ticket** | `/api/agents/analyze` `{ log_id, type:"jira" }` | LangChain agent (`agent_service.run_jira_creation_agent`) | ✅ |
 
-> Both the row-level buttons **and** the in-viewer buttons now call the mounted agentic endpoint
-> `/api/agents/analyze`. The alternative single-shot service (`routers/agent.py` → `services/agent.py`,
-> `/api/agent/*`) remains in the codebase but is **not registered in `main.py`**, so it is unused by
-> the UI.
+> Both the row-level buttons **and** the in-viewer buttons call the mounted agentic endpoint
+> `/api/agents/analyze` — the only agent path. (The old unmounted single-shot service,
+> `routers/agent.py` → `services/agent.py`, has been removed.)
 
 ### `incidents.tsx` (~490 lines)
 Data: `useGetActiveIncidents()`, `useGetRepeatIncidents()`, `useAccount()`.
@@ -279,7 +291,8 @@ Simple 404 card.
 
 ### `CloudWatchLogViewer.tsx`
 A `Dialog` that streams CloudWatch logs and offers AI actions.
-- Props: `{ jobId, jobName, resourceType: "job"|"lambda"|"emr"|"emr_serverless", open, onClose }`.
+- Props: `{ jobId, jobName, resourceType: "job"|"lambda"|"emr"|"emr_serverless"|"s3", open, onClose }`
+  (for `s3`, fetches `/api/logs/s3/{jobId}` where `jobId` is the object key stem).
 - React Query fetches the matching endpoint — `/api/logs/{job|lambda|emr|emr-serverless}/…` — with
   **`refetchInterval: 5000`** (auto-refresh). Resets AI state whenever it opens. The `RESOURCE_LABEL`
   map drives the dialog title; `agentLogId` is the Lambda function name for `lambda`, else the id.

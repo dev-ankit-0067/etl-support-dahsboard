@@ -93,9 +93,9 @@ etl-support-dahsboard/
 4. The **Express `api-server`** implements the same URL surface with hard-coded mock data — useful
    for UI work without AWS/Jira credentials. The OpenAPI spec in `lib/api-spec` is the shared
    contract that both the mock server and the generated frontend client are derived from.
-5. The **AI agents** (`/api/agent/*` and `/api/agents/*`) fetch CloudWatch logs, run a HuggingFace
-   LLM to produce a structured RCA, and can open an incident ticket in the configured provider
-   (Jira or ServiceNow).
+5. The **AI agents** (`/api/agents/analyze`) fetch logs for a resource (Glue/Lambda/EMR/EMR-Serverless
+   from CloudWatch, or a custom S3 log object), run a HuggingFace LLM to produce a structured RCA, and
+   can open an incident ticket in the configured provider (Jira or ServiceNow).
 
 See [01-architecture.md](./01-architecture.md) for the detailed flow and the important nuance about
 which backend is authoritative for which route.
