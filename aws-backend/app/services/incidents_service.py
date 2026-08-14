@@ -63,7 +63,7 @@ def _avg(xs: List[float]) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Public API (same surface the routers/agent previously called on jira_service)
+# Public API (the surface the incident/overview/rca routers and agent_service call)
 # ---------------------------------------------------------------------------
 
 def list_records(limit: int = 50) -> List[IncidentRecord]:
