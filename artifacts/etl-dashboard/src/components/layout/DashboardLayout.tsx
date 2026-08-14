@@ -3,9 +3,6 @@ import {
   ShieldCheck,
   AlertTriangle,
   Search,
-  Settings,
-  Bell,
-  RefreshCw,
   LayoutDashboard,
   DollarSign,
   FolderKanban,
@@ -21,14 +18,32 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { useAccount } from "@/contexts/AccountContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { CommandPalette } from "@/components/CommandPalette";
+import { useEffect, useState } from "react";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { account, accounts, setAccountId, projectLoading } = useAccount();
   const { user, authRequired, logout } = useAuth();
+  const [cmdOpen, setCmdOpen] = useState(false);
+  // Show the correct modifier hint per platform (⌘ on macOS, Ctrl elsewhere).
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /mac/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || navigator.userAgent);
+
+  // Open the command palette with ⌘K / Ctrl+K anywhere in the dashboard.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmdOpen((o) => !o);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   const navItems = [
     { name: "Executive Overview", path: "/", icon: LayoutDashboard },
@@ -93,26 +108,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         <header className="flex h-14 items-center gap-3 border-b bg-white px-4 lg:px-6">
           <div className="flex flex-1 items-center gap-3 min-w-0">
-            <div className="w-full max-w-sm hidden md:flex items-center relative ml-auto">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-              <Input
-                type="search"
-                placeholder="Search jobs, incidents..."
-                className="w-full bg-slate-50 pl-8 h-9"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setCmdOpen(true)}
+              className="w-full max-w-sm hidden md:flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 h-9 text-sm text-slate-500 hover:bg-slate-100 ml-auto"
+            >
+              <Search className="h-4 w-4" />
+              <span>Search pages, jobs, incidents…</span>
+              <kbd className="ml-auto hidden lg:inline-flex items-center gap-0.5 rounded border border-slate-300 bg-white px-1.5 font-mono text-[10px] text-slate-500">
+                {isMac ? "⌘K" : "Ctrl K"}
+              </kbd>
+            </button>
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
-              <RefreshCw className="h-3 w-3" />
-              <span>Last refreshed: Just now</span>
-            </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Bell className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Settings className="h-4 w-4" />
-            </Button>
             {authRequired && (
               <div className="flex items-center gap-2 border-l pl-3">
                 <span className="hidden sm:flex items-center gap-1.5 text-xs text-slate-600">
@@ -145,6 +153,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
     </div>
   );
 }
