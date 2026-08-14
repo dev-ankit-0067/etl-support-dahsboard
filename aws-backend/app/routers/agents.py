@@ -26,11 +26,12 @@ class AgentRequest(BaseModel):
             "jira — analyse logs AND create a Jira ticket; returns analysis + ticket key."
         ),
     )
-    resource_type: Literal["job", "lambda", "emr", "emr_serverless"] = Field(
+    resource_type: Literal["job", "lambda", "emr", "emr_serverless", "s3"] = Field(
         "job",
         description=(
             "job — Glue job run ID (default). lambda — Lambda function name. "
-            "emr — EMR-on-EC2 cluster/step id. emr_serverless — EMR Serverless job run id."
+            "emr — EMR-on-EC2 cluster/step id. emr_serverless — EMR Serverless job run id. "
+            "s3 — S3 log identifier (object key without .log)."
         ),
     )
 

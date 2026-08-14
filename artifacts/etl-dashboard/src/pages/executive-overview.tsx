@@ -87,14 +87,15 @@ const DATE_MULTIPLIERS: Record<string, number> = {
 };
 
 // Resource types selectable in the header dropdown.
-type ResType = "glue" | "lambda" | "emr" | "emr_serverless";
+type ResType = "glue" | "lambda" | "emr" | "emr_serverless" | "s3";
 
 // Maps the UI resource type to the backend agent/log resource_type.
-const AGENT_RESOURCE: Record<ResType, "job" | "lambda" | "emr" | "emr_serverless"> = {
+const AGENT_RESOURCE: Record<ResType, "job" | "lambda" | "emr" | "emr_serverless" | "s3"> = {
   glue: "job",
   lambda: "lambda",
   emr: "emr",
   emr_serverless: "emr_serverless",
+  s3: "s3",
 };
 
 interface ResourceConfig {
@@ -141,6 +142,13 @@ const RESOURCE_CONFIG: Record<ResType, ResourceConfig> = {
     totalSubtitle: "Across all EMR Serverless apps", tableTitle: "Active Applications",
     nameHeader: "Application Name", costHeader: "Cost/Run", emptyNoun: "applications",
   },
+  s3: {
+    label: "S3", runsUrl: "/api/s3/runs", historyBase: "",
+    desc: "Custom S3 log files and AI analysis",
+    totalLabel: "Total Log Files", healthyLabel: "Latest File", failedLabel: "Projects",
+    totalSubtitle: "Under the selected project prefix", tableTitle: "S3 Log Files",
+    nameHeader: "Run ID", costHeader: "Size", emptyNoun: "log files",
+  },
 };
 
 // Runs returned by the non-Glue endpoints (Lambda uses functionName, EMR uses pipelineName).
@@ -148,11 +156,16 @@ interface ResourceRun {
   id: string;
   pipelineName?: string;
   functionName?: string;
-  status: string;
-  startTime: string;
-  endTime: string;
-  duration: string;
+  status?: string;
+  startTime?: string;
+  endTime?: string;
+  duration?: string;
   costPerRun?: number;
+  // S3 log objects (/api/s3/runs)
+  runId?: string;
+  project?: string;
+  lastModified?: string;
+  sizeBytes?: number;
 }
 
 function statusBadge(status: string) {
@@ -572,6 +585,141 @@ function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJ
   );
 }
 
+function fmtBytes(n?: number): string {
+  if (n === undefined || n === null) return "—";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// S3 log source: an adapted list of log files under s3://<bucket>/<project>/ with
+// per-file Analyze / RCA / ticket actions (no run status/cost — S3 has none).
+function S3LogsSection({
+  runs,
+  dateRange,
+  onAnalyzeLogs,
+  onGetRca,
+  onLogJiraTicket,
+}: {
+  runs: ResourceRun[];
+  dateRange: string;
+  onAnalyzeLogs: (id: string, name: string) => void;
+  onGetRca: (id: string) => void;
+  onLogJiraTicket: (id: string) => void;
+}) {
+  const { incidentProviderLabel } = useAuth();
+  // Filter by lastModified via the shared date-range helper.
+  const filtered = filterRunsByDateRange(
+    runs.map((r) => ({ ...r, startTime: r.lastModified ?? "" })),
+    dateRange,
+  );
+  const totalFiles = filtered.length;
+  const projectCount = new Set(filtered.map((r) => r.project).filter(Boolean)).size;
+  const latest = filtered.reduce<string>(
+    (acc, r) => (r.lastModified && r.lastModified > acc ? r.lastModified : acc),
+    "",
+  );
+
+  return (
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Log Files</p>
+                <p className="text-2xl font-bold text-slate-800 leading-tight">{totalFiles.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground">Under the selected project prefix</p>
+              </div>
+              <div className="p-2 rounded-lg bg-blue-50"><FileText className="h-5 w-5 text-blue-500" /></div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Latest File</p>
+                <p className="text-lg font-bold text-slate-800 leading-tight">{latest ? fmtTime(latest) : "—"}</p>
+                <p className="text-[10px] text-muted-foreground">Most recently modified log</p>
+              </div>
+              <div className="p-2 rounded-lg bg-emerald-50"><Clock className="h-5 w-5 text-emerald-500" /></div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Projects</p>
+                <p className="text-2xl font-bold text-slate-800 leading-tight">{projectCount.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground">Distinct project prefixes</p>
+              </div>
+              <div className="p-2 rounded-lg bg-violet-50"><Briefcase className="h-5 w-5 text-violet-500" /></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <CardHeader className="pb-2 pt-3 shrink-0">
+          <CardTitle className="text-sm font-medium">S3 Log Files</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0 flex-1 min-h-0 overflow-auto">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_rgb(226_232_240)]">
+              <TableRow>
+                <TableHead className="text-xs">Run ID</TableHead>
+                <TableHead className="text-xs">Project</TableHead>
+                <TableHead className="text-xs">Last Modified</TableHead>
+                <TableHead className="text-xs text-right">Size</TableHead>
+                <TableHead className="text-xs text-center">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8">
+                    <div className="flex items-center justify-center text-muted-foreground text-sm">
+                      No log files in selected period
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="py-2">
+                      <span className="text-xs font-medium text-slate-700 break-all">{r.runId ?? r.id}</span>
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <span className="text-xs text-muted-foreground">{r.project || "—"}</span>
+                    </TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground">{fmtTime(r.lastModified ?? "")}</TableCell>
+                    <TableCell className="py-2 text-xs text-right font-mono">{fmtBytes(r.sizeBytes)}</TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5" onClick={() => onAnalyzeLogs(r.id, r.runId ?? r.id)}>
+                          <FileText className="h-3 w-3 mr-1" />Logs
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => onGetRca(r.id)}>
+                          <Sparkles className="h-3 w-3 mr-1" />Get RCA
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-violet-600 border-violet-200 hover:bg-violet-50" onClick={() => onLogJiraTicket(r.id)}>
+                          <TicketPlus className="h-3 w-3 mr-1" />Log {incidentProviderLabel}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
 export default function ExecutiveOverview() {
   const { data: kpis } = useGetOverviewKpis();
   const { data: runs } = useGetPipelineRuns();
@@ -593,7 +741,7 @@ export default function ExecutiveOverview() {
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-  const callAgentsApi = async (logId: string, mode: "log" | "jira", resource: "job" | "lambda" | "emr" | "emr_serverless" = "job") => {
+  const callAgentsApi = async (logId: string, mode: "log" | "jira", resource: "job" | "lambda" | "emr" | "emr_serverless" | "s3" = "job") => {
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     setAnalysisMode(mode);
     setAnalysisLogId(logId);
@@ -669,6 +817,7 @@ export default function ExecutiveOverview() {
   const cfg = RESOURCE_CONFIG[resourceType];
   const isGlue = resourceType === "glue";
   const isLambda = resourceType === "lambda";
+  const isS3 = resourceType === "s3";
 
   const jobRuns: JobRun[] = (Array.isArray(runs) ? runs : []) as unknown as JobRun[];
 
@@ -683,8 +832,8 @@ export default function ExecutiveOverview() {
         startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun,
       }))
     : resourceRuns.map((r) => ({
-        id: r.id, name: r.pipelineName ?? r.functionName ?? r.id, status: r.status,
-        startTime: r.startTime, endTime: r.endTime, duration: r.duration, cost: r.costPerRun ?? 0,
+        id: r.id, name: r.pipelineName ?? r.functionName ?? r.id, status: r.status ?? "",
+        startTime: r.startTime ?? "", endTime: r.endTime ?? "", duration: r.duration ?? "", cost: r.costPerRun ?? 0,
       }));
 
   const filteredRuns = filterRunsByDateRange(normalized, dateRange);
@@ -753,6 +902,7 @@ export default function ExecutiveOverview() {
               <SelectItem value="lambda">Lambda</SelectItem>
               <SelectItem value="emr">EMR</SelectItem>
               <SelectItem value="emr_serverless">EMR Serverless</SelectItem>
+              <SelectItem value="s3">S3</SelectItem>
             </SelectContent>
           </Select>
           <Select value={dateRange} onValueChange={handleDateRangeChange}>
@@ -770,6 +920,20 @@ export default function ExecutiveOverview() {
         </div>
       </div>
 
+      {isS3 ? (
+        <S3LogsSection
+          runs={resourceRuns}
+          dateRange={dateRange}
+          onAnalyzeLogs={(id, name) => {
+            setSelectedJobId(id);
+            setSelectedJobName(name);
+            setLogsModalOpen(true);
+          }}
+          onGetRca={(id) => callAgentsApi(id, "log", "s3")}
+          onLogJiraTicket={(id) => callAgentsApi(id, "jira", "s3")}
+        />
+      ) : (
+      <>
       {/* KPI tiles - frozen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
         <Card>
@@ -999,6 +1163,8 @@ export default function ExecutiveOverview() {
           </Table>
         </CardContent>
       </Card>
+      </>
+      )}
 
       {/* CloudWatch Log Viewer Modal */}
       <CloudWatchLogViewer

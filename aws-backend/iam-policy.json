@@ -55,6 +55,15 @@
       "Resource": "*"
     },
     {
+      "Sid": "S3LogsRead",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "CloudWatchRead",
       "Effect": "Allow",
       "Action": [

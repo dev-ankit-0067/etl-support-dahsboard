@@ -12,6 +12,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from ..config import get_settings
 from ..services import cloudwatch_service
 from ..services import incidents_service
+from ..services import s3_logs_service
 
 log = logging.getLogger(__name__)
 
@@ -73,6 +74,16 @@ def fetch_emr_serverless_logs(job_run_id: str) -> str:
 
 
 @tool
+def fetch_s3_logs(run_id: str) -> str:
+    """Fetch a custom log stored in S3 by its identifier and return it as plain text.
+
+    The identifier is the object key without the .log suffix (e.g. 'poc/run-123'),
+    read from s3://<S3_LOG_BUCKET>/<identifier>.log.
+    """
+    return s3_logs_service.get_logs_text(run_id)
+
+
+@tool
 def create_incident_ticket(summary: str, description: str, priority: str = "Medium") -> str:
     """Create an incident ticket for an ETL pipeline issue. Returns the created ticket id/key.
 
@@ -112,8 +123,8 @@ def _get_chat_model() -> ChatHuggingFace:
 
 _LOG_ANALYSIS_SYSTEM = """You are an expert AWS ETL pipeline operations engineer.
 
-When given a resource identifier (a Glue job run ID, a Lambda function name, an EMR cluster ID, or an EMR Serverless job run ID):
-1. Call the available log-retrieval tool to fetch the CloudWatch logs for that resource.
+When given a resource identifier (a Glue job run ID, a Lambda function name, an EMR cluster ID, an EMR Serverless job run ID, or an S3 log identifier):
+1. Call the available log-retrieval tool to fetch the logs for that resource.
 2. Identify all errors, exceptions, warnings, and anomalies.
 3. Determine the root cause.
 4. Rate severity: P1 (data loss / pipeline fully down), P2 (significant degradation),
@@ -130,8 +141,8 @@ Respond with a structured analysis in this exact format:
 
 _JIRA_CREATION_SYSTEM = """You are an expert AWS ETL pipeline operations engineer with access to CloudWatch and an incident ticketing system.
 
-When given a resource identifier (a Glue job run ID, a Lambda function name, an EMR cluster ID, or an EMR Serverless job run ID):
-1. Call the available log-retrieval tool to fetch the CloudWatch logs for that resource.
+When given a resource identifier (a Glue job run ID, a Lambda function name, an EMR cluster ID, an EMR Serverless job run ID, or an S3 log identifier):
+1. Call the available log-retrieval tool to fetch the logs for that resource.
 2. Analyse the logs: identify root cause, severity, and affected components.
 3. Call create_incident_ticket with:
    - summary: "[<SEVERITY>] <pipeline_name>: <one-line issue>"
@@ -148,6 +159,7 @@ _LOG_TOOLS = {
     "lambda": fetch_lambda_logs,
     "emr": fetch_emr_logs,
     "emr_serverless": fetch_emr_serverless_logs,
+    "s3": fetch_s3_logs,
     "job": fetch_cloudwatch_logs,
 }
 
@@ -155,6 +167,7 @@ _RESOURCE_LABELS = {
     "lambda": "Lambda function name",
     "emr": "EMR cluster ID",
     "emr_serverless": "EMR Serverless job run ID",
+    "s3": "S3 log identifier",
     "job": "Glue job run ID",
 }
 

@@ -15,7 +15,7 @@ from .context import current_project
 from .logging_config import configure_logging
 from .routers import (
     agents, cloudwatch, costs, emr, emr_serverless, health, incidents,
-    lambdas, meta, overview, pipelines, rca,
+    lambdas, meta, overview, pipelines, rca, s3_logs,
 )
 
 log = logging.getLogger(__name__)
@@ -81,6 +81,7 @@ def create_app() -> FastAPI:
         rca.router,
         cloudwatch.router,
         agents.router,
+        s3_logs.router,
     ]
     for r in protected_routers:
         app.include_router(r, prefix=settings.api_prefix, dependencies=[Depends(require_auth)])

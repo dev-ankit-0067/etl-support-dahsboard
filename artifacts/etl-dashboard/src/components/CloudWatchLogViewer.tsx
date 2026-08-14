@@ -42,7 +42,7 @@ interface AgentAnalyzeResponse {
   jira_key?: string | null;
 }
 
-type ResourceType = "job" | "lambda" | "emr" | "emr_serverless";
+type ResourceType = "job" | "lambda" | "emr" | "emr_serverless" | "s3";
 
 interface Props {
   jobId: string | null;
@@ -57,6 +57,7 @@ const RESOURCE_LABEL: Record<ResourceType, string> = {
   lambda: "- Lambda",
   emr: "- EMR",
   emr_serverless: "- EMR Serverless",
+  s3: "- S3",
 };
 
 export default function CloudWatchLogViewer({
@@ -92,7 +93,9 @@ export default function CloudWatchLogViewer({
             ? `/api/logs/emr/${jobId}`
             : resourceType === "emr_serverless"
               ? `/api/logs/emr-serverless/${jobId}`
-              : `/api/logs/job/${jobId}`;
+              : resourceType === "s3"
+                ? `/api/logs/s3/${jobId}`
+                : `/api/logs/job/${jobId}`;
       const res = await apiFetch(endpoint);
       if (!res.ok) throw new Error("Failed to load logs");
       return res.json();

@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     def project_value_list(self) -> List[str]:
         return [x.strip() for x in self.project_values.split(",") if x.strip()]
 
+    # ---- S3 log source ----
+    s3_log_bucket: Optional[str] = Field(
+        default=None,
+        description="S3 bucket holding custom logs at s3://<bucket>/<project>/<run-id>.log "
+        "(env: S3_LOG_BUCKET). Project = the selected project tag value; 'all' lists every prefix.",
+    )
+
     # ---- EMR log groups (CloudWatch) ----
     emr_log_group: Optional[str] = Field(
         default=None,
