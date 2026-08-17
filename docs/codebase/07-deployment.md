@@ -49,8 +49,12 @@ Run `./setup.py` once, then `./startup.sh`.
 
 ### `gunicorn_conf.py`
 `bind = 0.0.0.0:$PORT` (default 8000); `workers = WEB_CONCURRENCY` (default `max(2, cpu_count())`);
-`worker_class = uvicorn.workers.UvicornWorker`; `timeout` 60s, `keepalive` 5s, `graceful_timeout`
-30s; access/error logs to stdout; `forwarded_allow_ips = "*"`.
+`worker_class = uvicorn.workers.UvicornWorker`; `timeout` = `GUNICORN_TIMEOUT` (default 60s),
+`keepalive` 5s, `graceful_timeout` 30s; access/error logs to stdout; `forwarded_allow_ips = "*"`.
+
+> The AI-agent path (`POST /api/agents/analyze` — LLM inference + log fetch + ticket creation) can
+> run longer than the 60s default, which kills the worker mid-request. Deploy with
+> `GUNICORN_TIMEOUT=300` (and match the ALB idle timeout; see §11).
 
 > Note the port mismatch to be aware of: `startup.sh` runs uvicorn on **8080**, while the Docker
 > image / gunicorn default to **8000**. Set `PORT`/nginx upstream consistently for your target.
@@ -93,7 +97,8 @@ see `aws.py`.
 | Incident provider | `INCIDENT_PROVIDER` (`jira` \| `servicenow`, default `jira`) — selects the MCP server used for incidents/RCA/ticket creation |
 | Jira (provider=jira) | `JIRA_URL`, `JIRA_USERNAME`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY`, `JIRA_ISSUE_TYPE`, `USE_JIRA_INCIDENTS` |
 | ServiceNow (provider=servicenow) | `SERVICENOW_INSTANCE`, `SERVICENOW_USER`, `SERVICENOW_PASSWORD`, `SERVICENOW_TABLE`, `SERVICENOW_PROJECT_FIELD` |
-| LLM | `HUGGINGFACE_API_TOKEN`, `HUGGINGFACE_MODEL` |
+| LLM | `HUGGINGFACE_API_TOKEN`, `HUGGINGFACE_MODEL` (default `Qwen/Qwen2.5-72B-Instruct`; see [agents-api.md](./agents-api.md#supported-models) for the Mistral-7B caveat) |
+| Gunicorn | `GUNICORN_TIMEOUT` (default 60s — raise to 300 for the AI-agent path), `WEB_CONCURRENCY` |
 
 Frontend build-time: `PORT`, `BASE_PATH`/`BASE_URL`.
 
@@ -121,3 +126,7 @@ Frontend build-time: `PORT`, `BASE_PATH`/`BASE_URL`.
   upstream failure instead of erroring the page.
 - **Logs** — backend emits structured JSON to stdout; `startup.sh` tees to `logs/`.
 - **Health/readiness** — `/healthz` and `/readyz` for load-balancer and container probes.
+- **ALB idle timeout** — the load balancer defaults to **60s** and is not set in the CloudFormation
+  template. The AI-agent path can exceed it (→ `504 Gateway Timeout`), so raise it once per ALB with
+  `aws elbv2 modify-load-balancer-attributes --load-balancer-arn <arn> --attributes "Key=idle_timeout.timeout_seconds,Value=300"`.
+  It persists across `deploy.sh` re-runs but is reset if the stack is recreated.

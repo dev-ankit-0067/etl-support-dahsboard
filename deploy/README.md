@@ -147,6 +147,12 @@ Deletes the CloudFormation stack, the ECR repo (with images), and the secret.
 
 ## Notes & options
 
+- **AI-agent timeouts**: `POST /api/agents/analyze` (LLM inference + log fetch + ticket creation) can
+  exceed the ALB's default **60s idle timeout** and gunicorn's default **60s worker timeout**, both of
+  which surface as `504 Gateway Timeout`. Set `GUNICORN_TIMEOUT=300` in `aws-backend/.env` and raise
+  the ALB idle timeout once per ALB (it is not part of the CFN template):
+  `aws elbv2 modify-load-balancer-attributes --load-balancer-arn <arn> --attributes "Key=idle_timeout.timeout_seconds,Value=300"`.
+  The value persists across `deploy.sh` runs but resets if the stack is recreated.
 - **HTTP/HTTPS**: HTTP-only by default; pass `CERT_ARN` to enable HTTPS + 80→443 redirect — see
   [HTTPS / TLS](#https--tls).
 - **Default VPC / public subnets**: the task runs with a public IP (`AssignPublicIp: ENABLED`) so it

@@ -27,9 +27,9 @@ Add the following to `aws-backend/.env` (see `.env.example`):
 # Required
 HUGGINGFACE_API_TOKEN=hf_your_token_here
 
-# Optional — defaults to mistralai/Mistral-7B-Instruct-v0.3
+# Optional — defaults to Qwen/Qwen2.5-72B-Instruct
 # Must be a model that supports tool/function calling
-HUGGINGFACE_MODEL=mistralai/Mistral-7B-Instruct-v0.3
+HUGGINGFACE_MODEL=Qwen/Qwen2.5-72B-Instruct
 ```
 
 The incident provider must also be configured for `type=jira` (ticket creation) to work. The
@@ -215,13 +215,22 @@ POST /api/agents/analyze
 
 ## Supported models
 
-The default model is `mistralai/Mistral-7B-Instruct-v0.3`. Any HuggingFace model that supports **tool/function calling** can be used via the `HUGGINGFACE_MODEL` env var.
+The default model is `Qwen/Qwen2.5-72B-Instruct` (the `huggingface_model` setting). Any HuggingFace
+model that supports **tool/function calling** and is served as a **chat model** on the Inference API
+can be used via the `HUGGINGFACE_MODEL` env var.
 
 Tested compatible models:
 
 | Model | Notes |
 |-------|-------|
-| `mistralai/Mistral-7B-Instruct-v0.3` | Default. Good balance of speed and quality. |
-| `meta-llama/Meta-Llama-3-8B-Instruct` | Higher quality, slower. |
+| `Qwen/Qwen2.5-72B-Instruct` | Default. Strong tool-calling support. Slow inference — needs raised timeouts (see below). |
+| `meta-llama/Meta-Llama-3-8B-Instruct` | Higher quality per token, faster; gated (accept license on HF). |
 | `meta-llama/Meta-Llama-3-70B-Instruct` | Best quality, requires HF Pro tier. |
-| `Qwen/Qwen2.5-72B-Instruct` | Strong tool-calling support. |
+
+> **`mistralai/Mistral-7B-Instruct-v0.3` does NOT work** — the Inference API rejects it with
+> `model_not_supported` / "not a chat model", so `POST /api/agents/analyze` fails.
+
+> **Timeouts:** the agent path can take a while (72B inference + multi-step tool loop). Keep the
+> gunicorn worker timeout and the ALB idle timeout above the request duration — deploy with
+> `GUNICORN_TIMEOUT=300` and raise the ALB `idle_timeout.timeout_seconds` to 300 (default is 60s,
+> which produces `504 Gateway Timeout`).

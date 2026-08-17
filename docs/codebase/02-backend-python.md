@@ -405,17 +405,19 @@ app/mcp_servers/servicenow_server.py  (Table API)    ┘  the SAME normalized In
 **`app/mcp_servers/` — the MCP servers** (each a standalone `FastMCP` stdio server, runnable via
 `python -m app.mcp_servers.<name>`). Both expose two interchangeable tools:
 - `list_incidents(project, days) -> list[Incident]`
-- `create_incident(summary, description, priority, issue_type) -> {id, url}`
+- `create_incident(summary, description, priority, issue_type, project) -> {id, url}`
 
 where a normalized `Incident` is `{id, title, severity(P1–P4), status(Open/Investigating/Mitigating/
 Resolved), pipeline, domain, owner, createdAt, resolvedAt}`.
 - **`jira_server.py`** — owns `class JiraClient` (singleton `JIRA` client from `jira_url` + basic
   auth) and the `jira_priority_mapping`/`jira_status_mapping` translation. `list_incidents` runs JQL
-  `project = <key> [AND labels = "<project>"] ORDER BY created DESC`.
+  `project = <key> [AND labels = "<project>"] ORDER BY created DESC`. `create_incident` sets the
+  issue `labels=[project]` when a project is passed (so the ticket surfaces under that filter).
 - **`servicenow_server.py`** — ServiceNow Table API (`/api/now/table/<table>`, basic auth). Maps the
   `incident` table (`number`, `short_description`, `priority`, `state`, `assigned_to`,
   `sys_created_on`, …) onto the same shape via `servicenow_priority_mapping`/`servicenow_status_mapping`;
-  filters on `servicenow_project_field`. `create_incident` maps Pn/priority names to ServiceNow 1–5.
+  filters on `servicenow_project_field`. `create_incident` maps Pn/priority names to ServiceNow 1–5
+  and writes the `servicenow_project_field` column when a project is passed.
 
 **`services/mcp_client.py`** — `StdioMcpClient` owns a persistent MCP `ClientSession` on a private
 event-loop thread (the subprocess stays up for the worker's life) and exposes a blocking `call(tool,
@@ -425,7 +427,10 @@ args)` for the sync service layer. `get_provider_client()` returns a per-provide
 **`services/incidents_service.py`** — provider-agnostic aggregation over the normalized records:
 - `_fetch(days=30)` `@cached("short")` — calls `list_incidents` with the active project.
 - `list_records(limit=50)` → `List[IncidentRecord]`; `summary()` → `IncidentSummary` (open,
-  resolved-24h, P1/P2/P3); `create_ticket(...)` → id/key/number.
+  resolved-24h, P1/P2/P3); `create_ticket(...)` → id/key/number. `create_ticket` reads the active
+  project (`tags_service.active_project()`, from the `X-Project` header) and passes it to the MCP
+  `create_incident` tool — tickets are tagged with the selected project (Jira label / ServiceNow
+  project field); when "all" is selected, no tag is set.
 - `rca_lifecycle(days=30)` / `rca_repeat_incidents(days=30, top_n=10)` `@cached("medium")` — average
   resolution time as the "Resolve" stage; pipelines with ≥2 incidents.
 
@@ -450,7 +455,8 @@ via `/api/agents/analyze` (see [04-frontend.md](./04-frontend.md#ai-button--endp
   (Lambda), `@tool fetch_emr_logs(cluster_id)` (EMR-on-EC2), `@tool
   fetch_emr_serverless_logs(job_run_id)` (EMR Serverless), `@tool fetch_s3_logs(run_id)` (custom S3
   log via `s3_logs_service`) — plus `@tool create_incident_ticket(summary, description, priority)`
-  (wraps `incidents_service.create_ticket`, routed to Jira **or** ServiceNow per `INCIDENT_PROVIDER`).
+  (wraps `incidents_service.create_ticket`, routed to Jira **or** ServiceNow per `INCIDENT_PROVIDER`;
+  the active project from the `X-Project` header is passed through so the ticket is tagged with it).
   `_log_tool(resource_type)` / `_resource_label(resource_type)`
   select the tool + prompt label via the `_LOG_TOOLS` / `_RESOURCE_LABELS` maps.
 - `_get_chat_model()` — `ChatHuggingFace(HuggingFaceEndpoint(repo_id=huggingface_model,
