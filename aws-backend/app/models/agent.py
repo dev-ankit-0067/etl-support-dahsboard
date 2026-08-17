@@ -1,9 +1,6 @@
 from __future__ import annotations
-
 from typing import Literal, Optional
-
 from pydantic import BaseModel, Field
-
 
 class LogAnalysisRequest(BaseModel):
     logText: str = Field(..., description="Raw CloudWatch log text to analyze.")

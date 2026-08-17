@@ -17,3 +17,14 @@ class RepeatIncident(BaseModel):
     occurrences: int
     lastSeen: str
     rootCause: str
+
+
+class KeyFindingsRequest(BaseModel):
+    incident_id: str | None = None
+    title: str | None = None
+    description: str | None = None
+    notes: List[str] | None = None
+
+
+class KeyFindingsResponse(BaseModel):
+    key_findings: List[str]
