@@ -153,6 +153,7 @@ def create_incident(
     description: str,
     priority: str = "Medium",
     issue_type: Optional[str] = None,  # accepted for interface parity; unused for ServiceNow
+    project: Optional[str] = None,
 ) -> dict:
     """Create a ServiceNow incident and return its number/url.
 
@@ -161,19 +162,25 @@ def create_incident(
         description: Full incident description.
         priority: Priority as a Jira-style name or Pn (mapped to ServiceNow 1-5).
         issue_type: Ignored (present for cross-provider tool parity).
+        project: Optional project tag value written to the configured
+            SERVICENOW_PROJECT_FIELD so the ticket surfaces under that filter.
     """
     settings = get_settings()
     table = settings.servicenow_table
     snow_priority = _PRIORITY_TO_SNOW.get((priority or "").strip().lower(), settings.servicenow_issue_priority_default)
 
+    payload = {
+        "short_description": summary,
+        "description": description,
+        "priority": snow_priority,
+    }
+    if project and settings.servicenow_project_field:
+        payload[settings.servicenow_project_field] = project
+
     resp = requests.post(
         f"{_base_url()}/api/now/table/{table}",
         params={"sysparm_fields": "number,sys_id", "sysparm_display_value": "false"},
-        json={
-            "short_description": summary,
-            "description": description,
-            "priority": snow_priority,
-        },
+        json=payload,
         auth=_auth(),
         headers={"Accept": "application/json", "Content-Type": "application/json"},
         timeout=30,

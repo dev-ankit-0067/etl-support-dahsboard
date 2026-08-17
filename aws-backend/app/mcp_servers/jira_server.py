@@ -125,6 +125,7 @@ def create_incident(
     description: str,
     priority: str = "Medium",
     issue_type: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> dict:
     """Create a Jira issue and return its key/url.
 
@@ -133,19 +134,25 @@ def create_incident(
         description: Full incident description.
         priority: Jira priority name (Highest, High, Medium, Low).
         issue_type: Jira issue type; defaults to the configured type.
+        project: Optional project tag value applied as an issue label so the
+            ticket surfaces under that project's filter.
     """
     settings = get_settings()
     client = JiraClient.get_client()
     resolved_type = issue_type or settings.jira_issue_type
 
+    create_kwargs: dict = {
+        "project": settings.jira_project_key,
+        "summary": summary,
+        "description": description,
+        "issuetype": {"name": resolved_type},
+        "priority": {"name": priority},
+    }
+    if project:
+        create_kwargs["labels"] = [project]
+
     try:
-        issue = client.create_issue(
-            project=settings.jira_project_key,
-            summary=summary,
-            description=description,
-            issuetype={"name": resolved_type},
-            priority={"name": priority},
-        )
+        issue = client.create_issue(**create_kwargs)
     except JIRAError as exc:
         log.error("Failed to create Jira issue: %s", exc)
         raise

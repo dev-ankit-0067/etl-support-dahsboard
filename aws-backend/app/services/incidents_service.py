@@ -180,8 +180,14 @@ def create_ticket(
     priority: str = "Medium",
     issue_type: Optional[str] = None,
 ) -> str:
-    """Create a ticket in the active provider; return its id/key/number."""
+    """Create a ticket in the active provider; return its id/key/number.
+
+    The currently selected project (X-Project header) is passed to the provider
+    so the ticket is tagged with it (Jira label / ServiceNow project field).
+    When 'all' is selected, ``active_project()`` is None and no tag is set.
+    """
     client = get_provider_client()
+    project = tags_service.active_project()
     result = client.call(
         "create_incident",
         {
@@ -189,6 +195,7 @@ def create_ticket(
             "description": description,
             "priority": priority,
             "issue_type": issue_type,
+            "project": project,
         },
     )
     if isinstance(result, dict):
