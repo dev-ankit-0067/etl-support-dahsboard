@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { useAccount } from "@/contexts/AccountContext";
 import {
   useGetActiveIncidents,
@@ -85,6 +85,16 @@ function formatAgeInDays(age: string) {
   }
 
   return age;
+}
+
+function normalizeKeyFindings(payload: unknown): string[] {
+  if (!Array.isArray(payload)) return [];
+
+  return payload
+    .flatMap((item) => (typeof item === "string" ? item.split(/\n+/) : []))
+    .map((item) => item.replace(/^[\s\-\*\u2022\u00B7\u2023\u2024\u2027]+/, "").replace(/^\d+[\)\.\s]+/, "").trim())
+    .filter(Boolean)
+    .filter((item) => !/^(key findings|findings|summary)\s*:?.*$/i.test(item));
 }
 
 function statusBadge(status: string) {
@@ -183,6 +193,33 @@ function HorizontalTimeline({ incident }: { incident: Incident }) {
 
 function IncidentDetailSubsection({ incident }: { incident: Incident }) {
   const { data: repeats } = useGetRepeatIncidents();
+  const [keyFindings, setKeyFindings] = useState<string[] | null>(null);
+  const [kfLoading, setKfLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    async function fetchKF() {
+      setKfLoading(true);
+      try {
+        const res = await fetch(`/api/rca/key_findings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ incident_id: incident.id, title: incident.title, description: incident.rca }),
+        });
+        if (!res.ok) throw new Error("Failed to fetch key findings");
+        const data = await res.json();
+        if (mounted) {
+          setKeyFindings(normalizeKeyFindings(data?.key_findings));
+        }
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        if (mounted) setKfLoading(false);
+      }
+    }
+    fetchKF();
+    return () => { mounted = false; };
+  }, [incident.id]);
 
   const rcaEntry = repeats?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
   const isResolved = incident.status === "Resolved";
@@ -235,17 +272,28 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
               <Lightbulb className="h-4 w-4 text-amber-500" />
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Findings</p>
             </div>
-            <ul className="text-xs text-slate-700 list-disc pl-5 space-y-1.5 leading-5">
-              <li>Upstream schema drift introduced an unexpected field change.</li>
-              <li>Validation rules did not fail fast before the transformation step.</li>
-              <li>Retry behavior amplified the impact by repeatedly reprocessing failed batches.</li>
-            </ul>
+            {kfLoading ? (
+              <p className="text-xs text-muted-foreground">Analyzing...</p>
+            ) : (
+              <div className="space-y-3">
+                <ul className="text-xs text-slate-700 list-disc pl-5 space-y-1.5 leading-5">
+                  {(keyFindings && keyFindings.length > 0) ? (
+                    keyFindings.map((k, i) => <li key={i}>{k}</li>)
+                  ) : (
+                    <li className="list-none pl-0 text-muted-foreground">No key findings available yet.</li>
+                  )}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+
+
 
 export default function Incidents() {
   const { data: incidents } = useGetActiveIncidents();
@@ -470,7 +518,7 @@ export default function Incidents() {
                       <TableCell className="py-2">
                         <button
                           type="button"
-                          aria-label={isExpanded ? "Collapse details" : "Expand details"}
+                          aria-label={isExpanded ? "RCA details" : "Expand details"}
                           className="flex items-center justify-center h-5 w-5 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                           onClick={(e) => { e.stopPropagation(); setExpanded(isExpanded ? null : inc.id); }}
                         >
