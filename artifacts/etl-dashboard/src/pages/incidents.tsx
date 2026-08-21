@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { useAccount } from "@/contexts/AccountContext";
 import {
   useGetActiveIncidents,
@@ -28,6 +28,8 @@ import {
   Circle,
   FileSearch,
   Lightbulb,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 interface Incident {
@@ -42,6 +44,7 @@ interface Incident {
   acknowledged: boolean;
   escalationLevel: number;
   age: string;
+  rca?: string | null;
 }
 
 const SEVERITY_BADGE: Record<string, string> = {
@@ -82,6 +85,16 @@ function formatAgeInDays(age: string) {
   }
 
   return age;
+}
+
+function normalizeKeyFindings(payload: unknown): string[] {
+  if (!Array.isArray(payload)) return [];
+
+  return payload
+    .flatMap((item) => (typeof item === "string" ? item.split(/\n+/) : []))
+    .map((item) => item.replace(/^[\s\-\*\u2022\u00B7\u2023\u2024\u2027]+/, "").replace(/^\d+[\)\.\s]+/, "").trim())
+    .filter(Boolean)
+    .filter((item) => !/^(key findings|findings|summary)\s*:?.*$/i.test(item));
 }
 
 function statusBadge(status: string) {
@@ -180,13 +193,40 @@ function HorizontalTimeline({ incident }: { incident: Incident }) {
 
 function IncidentDetailSubsection({ incident }: { incident: Incident }) {
   const { data: repeats } = useGetRepeatIncidents();
+  const [keyFindings, setKeyFindings] = useState<string[] | null>(null);
+  const [kfLoading, setKfLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    async function fetchKF() {
+      setKfLoading(true);
+      try {
+        const res = await fetch(`/api/rca/key_findings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ incident_id: incident.id, title: incident.title, description: incident.rca }),
+        });
+        if (!res.ok) throw new Error("Failed to fetch key findings");
+        const data = await res.json();
+        if (mounted) {
+          setKeyFindings(normalizeKeyFindings(data?.key_findings));
+        }
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        if (mounted) setKfLoading(false);
+      }
+    }
+    fetchKF();
+    return () => { mounted = false; };
+  }, [incident.id]);
 
   const rcaEntry = repeats?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
   const isResolved = incident.status === "Resolved";
 
   const daysOpen = rcaEntry?.lastOccurrence ? Math.floor((Date.now() - new Date(rcaEntry.lastOccurrence).getTime()) / (1000 * 60 * 60 * 24)) : 2;
 
-  const rcaSummary = rcaEntry?.rootCause ||
+  const rcaSummary = incident.rca || rcaEntry?.rootCause ||
     (isResolved
       ? "A schema mismatch introduced during the latest upstream release caused repeated job failures until the pipeline was rolled back and the source contract was corrected."
       : "Investigation in progress. Initial analysis points to an upstream change introducing unexpected payload variance; on-call team is collecting trace data and validating recent deployments.");
@@ -232,11 +272,19 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
               <Lightbulb className="h-4 w-4 text-amber-500" />
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Findings</p>
             </div>
-            <ul className="text-xs text-slate-700 list-disc pl-5 space-y-1.5 leading-5">
-              <li>Upstream schema drift introduced an unexpected field change.</li>
-              <li>Validation rules did not fail fast before the transformation step.</li>
-              <li>Retry behavior amplified the impact by repeatedly reprocessing failed batches.</li>
-            </ul>
+            {kfLoading ? (
+              <p className="text-xs text-muted-foreground">Analyzing...</p>
+            ) : (
+              <div className="space-y-3">
+                <ul className="text-xs text-slate-700 list-disc pl-5 space-y-1.5 leading-5">
+                  {(keyFindings && keyFindings.length > 0) ? (
+                    keyFindings.map((k, i) => <li key={i}>{k}</li>)
+                  ) : (
+                    <li className="list-none pl-0 text-muted-foreground">No key findings available yet.</li>
+                  )}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -244,12 +292,17 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
   );
 }
 
+
+
+
 export default function Incidents() {
   const { data: incidents } = useGetActiveIncidents();
   const { account } = useAccount();
   const accountScale = account.scale;
   const [dateRange, setDateRange] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [chartsOpen, setChartsOpen] = useState(true);
+  const [tableOpen, setTableOpen] = useState(false);
 
   // Filter incidents client-side based on the selected date range
   const filteredIncidents = (incidents as Incident[] | undefined) ? (incidents as Incident[]).filter((inc) => {
@@ -310,7 +363,7 @@ export default function Incidents() {
   const totalIncidents = statusData.reduce((s, d) => s + d.value, 0);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)] gap-3">
+    <div className="flex flex-col gap-4 pb-6">
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
@@ -330,14 +383,28 @@ export default function Incidents() {
         </Select>
       </div>
 
-      {/* Charts row - frozen */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
+      {/* Charts section */}
+      <Card>
+        <CardHeader
+          className="pb-2 pt-3 cursor-pointer select-none"
+          onClick={() => setChartsOpen((o) => !o)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium">Incident Overview</CardTitle>
+            <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-slate-700">
+              {chartsOpen ? <><ChevronUp className="h-3.5 w-3.5" /> Collapse</> : <><ChevronDown className="h-3.5 w-3.5" /> Expand</>}
+            </button>
+          </div>
+        </CardHeader>
+        {chartsOpen && (
+          <CardContent className="pt-0 pb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Card>
           <CardHeader className="pb-1 pt-3">
             <CardTitle className="text-sm font-medium">Incidents by Status</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 pb-3">
-            <div className="grid grid-cols-[1fr_auto] items-center gap-3" style={{ height: 200 }}>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3" style={{ height: 160 }}>
               <div className="relative h-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
@@ -347,8 +414,8 @@ export default function Incidents() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={85}
+                      innerRadius={30}
+                      outerRadius={52}
                       paddingAngle={2}
                       stroke="#fff"
                       strokeWidth={2}
@@ -384,7 +451,7 @@ export default function Incidents() {
             <CardTitle className="text-sm font-medium">Open Incidents by Priority</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 pb-3">
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={160}>
               <BarChart data={priorityData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
@@ -398,27 +465,34 @@ export default function Incidents() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
-      {/* Active Incidents table - sliding window with sticky header */}
-      <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <CardHeader className="pb-2 pt-3 shrink-0">
+      {/* Active Incidents table */}
+      <Card className="flex flex-col overflow-hidden">
+        <CardHeader
+          className="pb-2 pt-3 cursor-pointer select-none"
+          onClick={() => setTableOpen((o) => !o)}
+        >
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium">Active Incidents</CardTitle>
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Open
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Investigating
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Resolved
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Open</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Investigating</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Resolved</span>
+              </div>
+              <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-slate-700">
+                {tableOpen ? <><ChevronUp className="h-3.5 w-3.5" /> Collapse</> : <><ChevronDown className="h-3.5 w-3.5" /> Expand</>}
+              </button>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0 flex-1 min-h-0 overflow-auto">
+        {tableOpen && (
+        <CardContent className="p-0">
+          <div className="overflow-y-auto" style={{ maxHeight: chartsOpen ? "calc(6 * 41px + 36px)" : "calc(12 * 41px + 36px)" }}>
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_rgb(226_232_240)]">
               <TableRow>
@@ -444,7 +518,7 @@ export default function Incidents() {
                       <TableCell className="py-2">
                         <button
                           type="button"
-                          aria-label={isExpanded ? "Collapse details" : "Expand details"}
+                          aria-label={isExpanded ? "RCA details" : "Expand details"}
                           className="flex items-center justify-center h-5 w-5 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                           onClick={(e) => { e.stopPropagation(); setExpanded(isExpanded ? null : inc.id); }}
                         >
@@ -453,7 +527,7 @@ export default function Incidents() {
                       </TableCell>
                       <TableCell className="text-xs font-mono text-primary py-2">{inc.id}</TableCell>
                       <TableCell className="py-2">
-                        <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700 max-w-[280px]">
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700 max-w-[380px]">
                           {inc.severity === "P1" && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />}
                           {inc.status === "Resolved" && <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />}
                           <span className="truncate" title={inc.title}>{inc.title}</span>
@@ -487,7 +561,9 @@ export default function Incidents() {
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
+        )}
       </Card>
     </div>
   );

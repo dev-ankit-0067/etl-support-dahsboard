@@ -34,6 +34,7 @@ class IncidentRecord(BaseModel):
     createdAt: str
     owner: str
     age: str
+    rca: str | None = None
 
 
 class IncidentList(BaseModel):
