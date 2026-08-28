@@ -25,6 +25,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from ..config import get_settings
+from .. import remote_config
 
 log = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ _registry_lock = threading.Lock()
 
 def get_provider_client() -> StdioMcpClient:
     """Return the MCP client for the configured incident provider (singleton)."""
-    provider = get_settings().incident_provider_name
+    provider = remote_config.incident_provider()
     module = _PROVIDER_MODULES.get(provider)
     if module is None:
         raise ValueError(

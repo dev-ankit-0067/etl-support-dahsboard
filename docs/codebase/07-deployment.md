@@ -73,7 +73,8 @@ Least-privilege, read-mostly policy the FastAPI backend needs:
 - **EmrRead / EmrServerlessRead** — `elasticmapreduce:*` (list/describe clusters/steps),
   `emr-serverless:*` (list/get applications/job runs)
 - **TagRead** — `tag:GetResources/GetTagKeys/GetTagValues` (project tag filtering)
-- **S3LogsRead** — `s3:GetObject/ListBucket` (custom S3 log source, `S3_LOG_BUCKET`)
+- **S3LogsRead** — `s3:GetObject/ListBucket` (custom S3 log source, `S3_LOG_BUCKET`, and the remote
+  config document in `CONFIG_S3_BUCKET`)
 - **CloudWatchRead** — `cloudwatch:GetMetricStatistics/GetMetricData/ListMetrics`,
   `logs:DescribeLogStreams/GetLogEvents`
 - **IncidentsRead** — `ssm-incidents:ListIncidentRecords/GetIncidentRecord/ListTimelineEvents`
@@ -94,13 +95,37 @@ see `aws.py`.
 | Cache | `CACHE_TTL_SHORT/MEDIUM/LONG` |
 | Domain | `GLUE_JOB_NAME_FILTER`, `LAMBDA_FUNCTION_TAG_KEY/VALUE`, `COST_EXPLORER_TAG_KEY`, `SLA_BREACH_MINUTES` |
 | Log sources | `EMR_LOG_GROUP`, `EMR_SERVERLESS_LOG_GROUP`, `S3_LOG_BUCKET` (custom S3 log source) |
-| Incident provider | `INCIDENT_PROVIDER` (`jira` \| `servicenow`, default `jira`) — selects the MCP server used for incidents/RCA/ticket creation |
+| Remote (S3) config | `CONFIG_S3_BUCKET` + `CONFIG_S3_KEY` (JSON document, optional), `CONFIG_REFRESH_SECONDS` (default 60) — see §8b |
+| Incident provider | `INCIDENT_PROVIDER` (`jira` \| `servicenow`, default `jira`) — selects the MCP server used for incidents/RCA/ticket creation; overridable at runtime via `"incidentProvider"` in the S3 config document |
 | Jira (provider=jira) | `JIRA_URL`, `JIRA_USERNAME`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY`, `JIRA_ISSUE_TYPE`, `USE_JIRA_INCIDENTS` |
 | ServiceNow (provider=servicenow) | `SERVICENOW_INSTANCE`, `SERVICENOW_USER`, `SERVICENOW_PASSWORD`, `SERVICENOW_TABLE`, `SERVICENOW_PROJECT_FIELD` |
 | LLM | `HUGGINGFACE_API_TOKEN`, `HUGGINGFACE_MODEL` (default `Qwen/Qwen2.5-72B-Instruct`; see [agents-api.md](./agents-api.md#supported-models) for the Mistral-7B caveat) |
 | Gunicorn | `GUNICORN_TIMEOUT` (default 60s — raise to 300 for the AI-agent path), `WEB_CONCURRENCY` |
 
 Frontend build-time: `PORT`, `BASE_PATH`/`BASE_URL`.
+
+## 8b. Remote (S3) runtime configuration
+
+Optional JSON document that **overrides** env-based settings at runtime without a redeploy:
+
+| Field | Overrides | Example |
+|-------|-----------|---------|
+| `incidentProvider` | `INCIDENT_PROVIDER` | `"jira"` \| `"servicenow"` |
+| `tagKey` | `PROJECT_TAG_KEY` (global resource tag key) | `"project"` |
+| `projects[].value` | `PROJECT_VALUES` (selectable tag values, `"all"` auto-added) | `"poc"` |
+| `projects[].tagKey` | per-project tag-key override | `"environment"` |
+| `projects[].s3LogBucket` | per-project log bucket | `"prod-etl-logs"` |
+| `projects[].s3LogPath` | per-project S3 log prefix (walker descends sub-folders to the `.log` files) | `"runs/prod"` |
+
+- The backend re-fetches the document every `CONFIG_REFRESH_SECONDS` (default 60). On fetch failure it
+  keeps the last good copy; with no copy it falls back to the env values above.
+- The current deployment uses `s3://ust-opsguardian-config/config.json` (checked in at
+  `aws-backend/config.json`). Upload it with
+  `aws s3 cp aws-backend/config.json s3://ust-opsguardian-config/config.json`.
+- `S3_LOG_BUCKET` + the legacy `s3://<bucket>/<project>/<run-id>.log` layout remain as the fallback
+  when a project has no `s3LogPath`.
+- Credentials stay in env/Secrets Manager; the config document must not contain secrets.
+- IAM: reading the document needs `s3:GetObject`/`s3:ListBucket` (already covered by **S3LogsRead**).
 
 ## 9. Monorepo commands (contributor cheat-sheet)
 

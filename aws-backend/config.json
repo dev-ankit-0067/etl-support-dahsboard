@@ -1,0 +1,10 @@
+{
+  "incidentProvider": "jira",
+  "tagKey": "project",
+  "projects": [
+    {
+      "value": "poc",
+      "s3LogPath": "poc"
+    }
+  ]
+}

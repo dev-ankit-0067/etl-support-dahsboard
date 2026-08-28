@@ -1,0 +1,16 @@
+{
+  "incidentProvider": "jira",
+  "tagKey": "project",
+  "projects": [
+    {
+      "value": "poc",
+      "s3LogPath": "etl-logs/poc"
+    },
+    {
+      "value": "prod",
+      "tagKey": "environment",
+      "s3LogBucket": "prod-etl-logs",
+      "s3LogPath": "runs/prod"
+    }
+  ]
+}

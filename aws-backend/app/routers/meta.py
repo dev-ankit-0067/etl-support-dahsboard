@@ -1,10 +1,10 @@
 """Public metadata endpoints (unauthenticated) — e.g. front-end runtime config."""
 from fastapi import APIRouter
 
+from .. import remote_config
 from ..config import get_settings
 
 router = APIRouter(tags=["meta"])
-
 
 _PROVIDER_LABELS = {"jira": "Jira", "servicenow": "ServiceNow"}
 
@@ -13,7 +13,7 @@ _PROVIDER_LABELS = {"jira": "Jira", "servicenow": "ServiceNow"}
 def config() -> dict:
     """Runtime config the SPA needs before login (Cognito pool/client, incident provider)."""
     s = get_settings()
-    provider = s.incident_provider_name
+    provider = remote_config.incident_provider()
     return {
         "cognito": {
             "userPoolId": s.cognito_user_pool_id,
@@ -29,8 +29,7 @@ def config() -> dict:
 @router.get("/projects")
 def projects() -> dict:
     """Project options for the dropdown: 'all' (no filter) + configured tag values."""
-    s = get_settings()
     return {
-        "tagKey": s.project_tag_key,
-        "projects": ["all", *s.project_value_list],
+        "tagKey": remote_config.tag_key(),
+        "projects": ["all", *remote_config.project_values()],
     }

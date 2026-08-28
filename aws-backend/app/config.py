@@ -43,6 +43,25 @@ class Settings(BaseSettings):
     cache_ttl_long: int = 1800     # seconds (cost explorer, history)
     cache_maxsize: int = 1024
 
+    # ---- Remote (S3) runtime configuration ----
+    # Optional JSON document in S3 that overrides env-based settings at runtime:
+    #   { "incidentProvider": "jira|servicenow", "tagKey": "...",
+    #     "projects": [{"value": "poc", "s3LogPath": "etl-logs/poc", ...}] }
+    # The app re-fetches it every config_refresh_seconds; on fetch failure it
+    # keeps the last good copy and falls back to env values when none exists.
+    config_s3_bucket: Optional[str] = Field(
+        default=None,
+        description="S3 bucket holding the JSON runtime configuration document (env: CONFIG_S3_BUCKET).",
+    )
+    config_s3_key: Optional[str] = Field(
+        default=None,
+        description="S3 object key of the JSON runtime configuration document (env: CONFIG_S3_KEY).",
+    )
+    config_refresh_seconds: int = Field(
+        default=60,
+        description="How often the S3 configuration document is re-fetched (env: CONFIG_REFRESH_SECONDS).",
+    )
+
     # ---- Domain config ----
     glue_job_name_filter: Optional[str] = Field(
         default=None, description="Optional substring to filter Glue jobs by name."

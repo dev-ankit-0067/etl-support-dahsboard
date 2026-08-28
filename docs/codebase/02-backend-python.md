@@ -86,17 +86,24 @@ Loads from environment / `.env` (case-insensitive, extra ignored). Groups:
   timeout knobs (`boto_max_attempts=6`, `boto_retry_mode="standard"`, connect=5s, read=30s).
 - **Caching:** `cache_ttl_short=30`, `cache_ttl_medium=300`, `cache_ttl_long=1800`,
   `cache_maxsize=1024` (seconds).
+- **Remote (S3) runtime config:** `config_s3_bucket` + `config_s3_key` (env `CONFIG_S3_BUCKET` /
+  `CONFIG_S3_KEY`, no defaults) point at an optional JSON document in S3 that **overrides**
+  `incident_provider`, `project_tag_key`/`project_values` and per-project S3 log paths at runtime;
+  `config_refresh_seconds` (default 60) controls the re-fetch TTL. Falls back to env values when
+  absent/unreachable. See `app/remote_config.py` and `config.example.json` for the schema.
 - **Domain filters:** `glue_job_name_filter`, `cost_explorer_tag_key` (`CostCenter`),
   `sla_breach_minutes=60`.
 - **EMR log groups:** `emr_log_group` (EMR-on-EC2, no default), `emr_serverless_log_group`
   (default `/aws/emr-serverless`).
 - **S3 log source:** `s3_log_bucket` (env `S3_LOG_BUCKET`, no default) — bucket holding custom logs
-  at `s3://<bucket>/<project>/<run-id>.log`.
+  at `s3://<bucket>/<project>/<run-id>.log`. Per-project prefixes (`s3LogPath` in the remote config
+  document) override the legacy `<project>/` layout; the walker descends through any sub-folders to
+  the `.log` files.
 - **HuggingFace (LLM):** `huggingface_api_token`, `huggingface_model`
   (`Qwen/Qwen2.5-72B-Instruct`, used by the agentic tool-calling agent).
 - **Incident provider:** `incident_provider` (`jira` | `servicenow`, default `jira`; env
   `INCIDENT_PROVIDER`) — selects which MCP server the backend spawns for incidents/RCA/ticket
-  creation.
+  creation. Overridable at runtime via `"incidentProvider"` in the remote config document.
 - **Jira** (when `INCIDENT_PROVIDER=jira`): `jira_url`, `jira_username`, `jira_api_token`,
   `jira_project_key` (`SCRUM`), `use_jira_incidents=True`, `jira_issue_type` (`Bug`), plus
   `jira_status_mapping` and `jira_priority_mapping` dictionaries used to translate Jira
@@ -368,22 +375,31 @@ Fetches raw log events for Glue jobs, Lambdas, and EMR (on-EC2 + Serverless).
 > the groups where your clusters/jobs ship logs.
 
 ### `s3_logs_service.py` — custom S3 log source
-Reads logs from `s3://<S3_LOG_BUCKET>/<project>/<run-id>.log` (not CloudWatch). The project is the
+Reads logs from S3 (not CloudWatch). Per-project prefixes come from the remote config document
+(`projects[].s3LogPath` / optional `s3LogBucket` — see `remote_config.py`); without remote config it
+falls back to the legacy `s3://<S3_LOG_BUCKET>/<project>/<run-id>.log` layout. The project is the
 active project tag value (X-Project header via `tags_service.active_project()`).
-- `list_runs(limit=500)` `@cached("short")` — lists `.log` objects under the active project's prefix
-  (all prefixes when project is `all`); returns `{id, runId, project, lastModified, sizeBytes}[]`
-  sorted newest-first. `id` is the object key without `.log` (e.g. `poc/run-123`).
-- `get_logs(identifier, limit=1000)` — reads `<identifier>.log`, returns the standard
+- `list_runs(limit=500)` `@cached("short")` — lists `.log` objects under the active project's
+  prefix(es) (every configured project prefix when project is `all`), **descending iteratively
+  through sub-folders** (`_iter_log_objects`, `Delimiter="/"`, depth-capped at 20) until files are
+  reached; returns `{id, runId, project, lastModified, sizeBytes}[]` sorted newest-first. `id` is the
+  object key without `.log` (e.g. `etl-logs/poc/run-123`).
+- `get_logs(identifier, limit=1000)` — resolves the bucket from the matching project prefix
+  (`remote_config.log_bucket`), reads `<identifier>.log`, returns the standard
   `{key, logGroup, events[], eventCount, timestamp}` envelope (one event per line). Rejects `..`
-  (path traversal) and returns a "not configured" envelope when `S3_LOG_BUCKET` is unset.
+  (path traversal) and **never raises** — missing bucket/object returns an error envelope so the UI
+  degrades gracefully when a tag has no configured S3 path.
 - `get_logs_text(identifier, limit=2000)` — the same content as plain text (used by the agent tool).
 
-> Needs `S3_LOG_BUCKET` set and `s3:GetObject` / `s3:ListBucket` IAM (added to the task-role policy).
+> Needs `s3:GetObject` / `s3:ListBucket` IAM on the log bucket(s) and the config bucket (already
+> granted to the task role via the `S3LogsRead` statement).
 
 ### Incidents & RCA — MCP-based provider (Jira **or** ServiceNow)
 
 Incident/RCA data comes from a ticketing backend selected at runtime by
-**`INCIDENT_PROVIDER`** (`jira` | `servicenow`, default `jira`). The backend is an **MCP client**
+**`INCIDENT_PROVIDER`** (`jira` | `servicenow`, default `jira`), overridable at runtime via
+`"incidentProvider"` in the remote S3 config document (`remote_config.incident_provider()`). The
+backend is an **MCP client**
 that spawns the chosen provider's **MCP server** as a stdio subprocess and calls its tools. All
 provider-specific SDK/REST access lives inside the servers; the FastAPI process only aggregates
 already-normalized records. Switching providers is a config change — no code change.
@@ -422,7 +438,7 @@ Resolved), pipeline, domain, owner, createdAt, resolvedAt}`.
 **`services/mcp_client.py`** — `StdioMcpClient` owns a persistent MCP `ClientSession` on a private
 event-loop thread (the subprocess stays up for the worker's life) and exposes a blocking `call(tool,
 args)` for the sync service layer. `get_provider_client()` returns a per-provider singleton keyed by
-`INCIDENT_PROVIDER`.
+the remote config's provider (env `INCIDENT_PROVIDER` fallback).
 
 **`services/incidents_service.py`** — provider-agnostic aggregation over the normalized records:
 - `_fetch(days=30)` `@cached("short")` — calls `list_incidents` with the active project.
