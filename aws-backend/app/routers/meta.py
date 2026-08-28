@@ -28,8 +28,14 @@ def config() -> dict:
 
 @router.get("/projects")
 def projects() -> dict:
-    """Project options for the dropdown: 'all' (no filter) + configured tag values."""
+    """Project options for the dropdown: 'all' (no filter) + configured tag values.
+
+    `labels` maps each project value to its custom S3 log-source label (from the
+    remote config's `s3LogLabel`), so the frontend can rename the S3 entry per tag.
+    """
+    values = remote_config.project_values()
     return {
         "tagKey": remote_config.tag_key(),
-        "projects": ["all", *remote_config.project_values()],
+        "projects": ["all", *values],
+        "labels": {v: lbl for v in values if (lbl := remote_config.s3_log_label(v))},
     }

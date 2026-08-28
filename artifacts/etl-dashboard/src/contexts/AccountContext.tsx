@@ -19,6 +19,7 @@ interface AccountContextValue {
   account: AwsAccount;
   setAccountId: (id: string) => void;
   accounts: AwsAccount[];
+  projectLabels: Record<string, string>;
   projectLoading: boolean;
 }
 
@@ -41,6 +42,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [accounts, setAccounts] = useState<AwsAccount[]>([ALL]);
   const [accountId, setAccountIdState] = useState<string>("all");
+  const [projectLabels, setProjectLabels] = useState<Record<string, string>>({});
   const [projectLoading, setProjectLoading] = useState(false);
 
   // Load the project options (configured tag values) from the backend.
@@ -51,6 +53,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         const projects: string[] = Array.isArray(d?.projects) ? d.projects : ["all"];
         setAccounts(
           projects.map((p) => (p === "all" ? ALL : { id: p, label: p })),
+        );
+        setProjectLabels(
+          d?.labels && typeof d.labels === "object" ? (d.labels as Record<string, string>) : {},
         );
       })
       .catch(() => setAccounts([ALL]));
@@ -72,7 +77,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const account = accounts.find((a) => a.id === accountId) ?? ALL;
 
   return (
-    <AccountContext.Provider value={{ account, setAccountId, accounts, projectLoading }}>
+    <AccountContext.Provider value={{ account, setAccountId, accounts, projectLabels, projectLoading }}>
       {children}
     </AccountContext.Provider>
   );

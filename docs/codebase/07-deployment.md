@@ -116,16 +116,23 @@ Optional JSON document that **overrides** env-based settings at runtime without 
 | `projects[].tagKey` | per-project tag-key override | `"environment"` |
 | `projects[].s3LogBucket` | per-project log bucket | `"prod-etl-logs"` |
 | `projects[].s3LogPath` | per-project S3 log prefix (walker descends sub-folders to the `.log` files) | `"runs/prod"` |
+| `projects[].s3LogLabel` | per-project display label for the S3 log-source entry in the UI dropdown (defaults to `S3`; served to the SPA via `GET /api/projects` → `labels`) | `"poc-spark-backend"` |
 
 - The backend re-fetches the document every `CONFIG_REFRESH_SECONDS` (default 60). On fetch failure it
   keeps the last good copy; with no copy it falls back to the env values above.
 - The current deployment uses `s3://ust-opsguardian-config/config.json` (checked in at
   `aws-backend/config.json`). Upload it with
   `aws s3 cp aws-backend/config.json s3://ust-opsguardian-config/config.json`.
+- IAM: reading the document needs `s3:GetObject`/`s3:ListBucket`. The stack's **pre-created task
+  role** (`opsguardian-task-role`) predates this feature and lacks S3 permissions, so the config
+  bucket carries a **bucket policy** granting that role read access
+  (see `AllowOpsGuardianTaskRoleReadConfig`, applied via `aws s3api put-bucket-policy`).
 - `S3_LOG_BUCKET` + the legacy `s3://<bucket>/<project>/<run-id>.log` layout remain as the fallback
   when a project has no `s3LogPath`.
 - Credentials stay in env/Secrets Manager; the config document must not contain secrets.
-- IAM: reading the document needs `s3:GetObject`/`s3:ListBucket` (already covered by **S3LogsRead**).
+- The `s3LogLabel` value is served to the SPA via `GET /api/projects` → `labels` (per project
+  value), and the frontend uses it as the label of the S3 log-source entry in the resource-type
+  dropdown (e.g. `poc` → `poc-spark-backend`; defaults to `S3`).
 
 ## 9. Monorepo commands (contributor cheat-sheet)
 

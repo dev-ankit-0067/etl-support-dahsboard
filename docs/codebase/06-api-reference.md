@@ -22,7 +22,7 @@ Legend: ✅ implemented · 🟡 stub returns `[]` · ⚪ mock-only (not in FastA
 | GET | `/healthz` | Express ✅ | `{ status: "ok" }` (validated via `HealthCheckResponse.parse`; no `version`) |
 | GET | `/readyz` | FastAPI ✅ | `{ status: "ready" }` |
 | GET | `/config` | FastAPI ✅ | `{ cognito: { userPoolId, clientId, region }, incidentProvider, incidentProviderLabel }` — SPA runtime config (pre-login); provider drives incident data + ticket-button labels |
-| GET | `/projects` | FastAPI ✅ | `{ tagKey, projects: ["all", ...] }` — project dropdown options (from `PROJECT_VALUES`) |
+| GET | `/projects` | FastAPI ✅ | `{ tagKey, projects: ["all", ...], labels }` — project dropdown options (from the remote S3 config / `PROJECT_VALUES`) + per-project S3 log-source labels |
 
 > **Project filter:** the SPA sends the selected project as an **`X-Project`** request header. When
 > present (and not `all`), the backend filters resources by the `project` tag (Glue/Lambda/EMR via

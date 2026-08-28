@@ -168,8 +168,9 @@ Each router is a thin FastAPI `APIRouter` with a prefix and tag. Endpoints below
 ### `meta.py` — `/config` & `/projects`, tag `meta` (public)
 - `GET /config` → `{ cognito: { userPoolId, clientId, region } }` — runtime config the SPA reads
   before login. Values come from settings; `null` when Cognito isn't configured.
-- `GET /projects` → `{ tagKey, projects: ["all", ...project_value_list] }` — options for the project
-  dropdown (from `PROJECT_VALUES`).
+- `GET /projects` → `{ tagKey, projects: ["all", ...project_value_list], labels }` — options for the
+  project dropdown (from the remote config's `projects[].value`, `PROJECT_VALUES` fallback). `labels`
+  maps each project value to its custom S3 log-source label (`projects[].s3LogLabel`) for the UI.
 
 ## Project tag filtering
 
@@ -395,7 +396,6 @@ active project tag value (X-Project header via `tags_service.active_project()`).
 > granted to the task role via the `S3LogsRead` statement).
 
 ### Incidents & RCA — MCP-based provider (Jira **or** ServiceNow)
-
 Incident/RCA data comes from a ticketing backend selected at runtime by
 **`INCIDENT_PROVIDER`** (`jira` | `servicenow`, default `jira`), overridable at runtime via
 `"incidentProvider"` in the remote S3 config document (`remote_config.incident_provider()`). The

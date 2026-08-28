@@ -723,7 +723,7 @@ function S3LogsSection({
 export default function ExecutiveOverview() {
   const { data: kpis } = useGetOverviewKpis();
   const { data: runs } = useGetPipelineRuns();
-  const { account } = useAccount();
+  const { account, projectLabels } = useAccount();
   const [dateRange, setDateRange] = useState("today");
   const [resourceType, setResourceType] = useState<ResType>("glue");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -818,6 +818,9 @@ export default function ExecutiveOverview() {
   const isGlue = resourceType === "glue";
   const isLambda = resourceType === "lambda";
   const isS3 = resourceType === "s3";
+  // Custom per-project label for the S3 log source (remote config `s3LogLabel`).
+  const s3Label = projectLabels[account.id] || "S3";
+  const resourceLabel = isS3 ? s3Label : cfg.label;
 
   const jobRuns: JobRun[] = (Array.isArray(runs) ? runs : []) as unknown as JobRun[];
 
@@ -871,7 +874,7 @@ export default function ExecutiveOverview() {
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-white/70 backdrop-blur-sm">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            Loading {RESOURCE_CONFIG[resourceType].label}…
+            Loading {resourceLabel}…
           </p>
         </div>
       )}
@@ -902,7 +905,7 @@ export default function ExecutiveOverview() {
               <SelectItem value="lambda">Lambda</SelectItem>
               <SelectItem value="emr">EMR</SelectItem>
               <SelectItem value="emr_serverless">EMR Serverless</SelectItem>
-              <SelectItem value="s3">S3</SelectItem>
+              <SelectItem value="s3">{s3Label}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={dateRange} onValueChange={handleDateRangeChange}>

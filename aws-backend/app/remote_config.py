@@ -54,6 +54,10 @@ class ProjectConfig(BaseModel):
         default=None,
         description="S3 prefix (folder) under which this project's logs live.",
     )
+    s3LogLabel: Optional[str] = Field(
+        default=None,
+        description="Display label for the S3 log source in the UI (defaults to 'S3').",
+    )
 
 
 class RemoteConfigFile(BaseModel):
@@ -154,6 +158,16 @@ def project_values() -> List[str]:
     if cfg and cfg.projects:
         return [p.value for p in cfg.projects if p.value.strip()]
     return get_settings().project_value_list
+
+
+def s3_log_label(project: str) -> Optional[str]:
+    """Custom UI label for the S3 log source of a project, or None ('S3')."""
+    cfg = _store.get()
+    if cfg:
+        for p in cfg.projects:
+            if p.value == project and p.s3LogLabel:
+                return p.s3LogLabel
+    return None
 
 
 def source_for(project: str) -> Tuple[Optional[str], str, str]:

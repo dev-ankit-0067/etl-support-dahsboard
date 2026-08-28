@@ -4,7 +4,8 @@
   "projects": [
     {
       "value": "poc",
-      "s3LogPath": "poc"
+      "s3LogPath": "poc",
+      "s3LogLabel": "poc-spark-backend"
     }
   ]
 }
