@@ -37,17 +37,14 @@ Legend: ✅ implemented · 🟡 stub returns `[]` · ⚪ mock-only (not in FastA
 | Method | Path | Backend | Response type |
 |--------|------|---------|---------------|
 | GET | `/overview/kpis` | FastAPI ✅ / Express ✅ | `OverviewKpis` |
-| GET | `/overview/health-distribution` | FastAPI ✅ / Express ✅ | `HealthDistribution` |
 | GET | `/overview/job-status-trend` | FastAPI ✅ / Express ✅ | `JobStatusTrendItem[]` |
 | GET | `/overview/failed-jobs` | FastAPI ✅ / Express ✅ | `FailedJob[]` |
 | GET | `/overview/active-incidents` | FastAPI ✅ / Express ✅ | `ActiveIncident[]` |
 
 **`OverviewKpis`** — `totalPipelines, healthy, degraded, failed, failedJobs24h, activeP1, activeP2,
-slaBreaches, avgMtta, avgMttr, topImpactedDomain, slaCompliancePercent`
-**`HealthDistribution`** — `{ domains: DomainHealth[] }` where `DomainHealth = { name, healthy,
-degraded, failed }`
+slaBreaches, slaCompliancePercent`
 **`JobStatusPoint`** — `timestamp, success, failed, running`
-**`FailedJob`** — `id, pipelineName, domain, failedAt, duration, errorType, owner, severity`
+**`FailedJob`** — `id, pipelineName, failedAt, duration, errorType, severity`
 **`ActiveIncident`** — `id, title, severity, status, pipeline, domain, createdAt, owner,
 acknowledged, escalationLevel, age`
 
@@ -62,8 +59,7 @@ acknowledged, escalationLevel, age`
 | GET | `/pipelines/history/{pipeline_name}` | FastAPI ✅ / Express ✅ | `PipelineHistoryItem[]` |
 
 **`LiveStatus`** — `running, failed, timedOut, delayed, waitingUpstream`
-**`PipelineRun`** — `id, pipelineName, status, startTime, endTime, duration, owner, environment,
-domain, costPerRun`
+**`PipelineRun`** — `id, pipelineName, status, startTime, endTime, duration, costPerRun`
 **`PipelineHistoryItem`** — `id, status, startTime, durationMin, cost, recordsProcessed,
 errorMessage?`
 
@@ -197,7 +193,8 @@ FastAPI)
 | GET | `/costs/service-trend` | FastAPI ✅ / Express ✅ | `ServiceTrend` (not in OpenAPI spec) |
 | GET | `/costs/optimization` | Express ⚪ | `OptimizationInsight[]` |
 
-**`CostKpis`** — `totalCostMtd, avgCostPerRun, costOfFailedRuns, budget`
+**`CostKpis`** — `totalCostMtd, lastMonthTotal, lastMonthSamePeriod, forecast, budget` — real Cost
+Explorer / Budgets / GetCostForecast values (no heuristics)
 **`CostBreakdown`** — `{ byPipeline: { name, cost }[] }`
 **`CostTrendPoint`** — `date, cost`
 **`CostPerformance`** — `{ costVsPipeline: CostTrendPoint[], costRanges: { today, 7d, 30d } }`

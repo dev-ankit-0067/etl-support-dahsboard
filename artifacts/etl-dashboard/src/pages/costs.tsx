@@ -70,15 +70,14 @@ export default function Costs() {
   // ---------- Cost tile calculations ----------
   const today = new Date();
   const dayOfMonth = today.getDate();
-  const daysInThisMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const monthLabel = today.toLocaleString("en-US", { month: "long", year: "numeric" });
   const lastMonthLabel = new Date(today.getFullYear(), today.getMonth() - 1, 1)
     .toLocaleString("en-US", { month: "long", year: "numeric" });
 
   const totalMtd = Math.round(kpis.totalCostMtd);
-  const lastMonthSamePeriod = Math.round(totalMtd * 0.92);                   // -8% YoY improvement
-  const forecastThisMonth = Math.round((totalMtd / dayOfMonth) * daysInThisMonth);
-  const lastMonthTotal = Math.round(lastMonthSamePeriod * (daysInThisMonth / dayOfMonth) * 1.04);
+  const lastMonthSamePeriod = Math.round(kpis.lastMonthSamePeriod);
+  const forecastThisMonth = Math.round(kpis.forecast);
+  const lastMonthTotal = Math.round(kpis.lastMonthTotal);
   const budget = Math.round(kpis.budget);
   const budgetPercent = budget > 0 ? (totalMtd / budget) * 100 : 0;
 
@@ -183,8 +182,8 @@ export default function Costs() {
                         <Info className="h-3 w-3 text-slate-300 hover:text-slate-500 cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-[240px] text-xs">
-                        Projected end-of-month spend for {monthLabel}, computed by extrapolating the current daily run rate
-                        ({fmt$(totalMtd / dayOfMonth)}/day) across all {daysInThisMonth} days.
+                        Projected end-of-month spend for {monthLabel}, from the AWS Cost Explorer
+                        forecast (actual MTD spend + forecast for the remaining days).
                       </TooltipContent>
                     </UiTooltip>
                   </div>

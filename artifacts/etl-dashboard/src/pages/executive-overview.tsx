@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   useGetOverviewKpis,
@@ -807,6 +807,9 @@ export default function ExecutiveOverview() {
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       setAnalysisResult(data);
+      // A ticket was created — refresh the mappings so the Ticket column and
+      // the disabled "Ticket Logged" buttons appear without a manual reload.
+      if (mode === "jira" && data?.jira_key) refreshTickets();
     } catch (err) {
       setAnalysisError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -826,7 +829,8 @@ export default function ExecutiveOverview() {
   // Log → incident ticket links (Jira/ServiceNow) keyed by log id.
   const [tickets, setTickets] = useState<Record<string, TicketLink>>({});
 
-  useEffect(() => {
+  // (Re)load the ticket mappings — called on mount and after a ticket is created.
+  const refreshTickets = useCallback(() => {
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     apiFetch(`${base}/api/ticket-mappings`)
       .then((r) => r.json())
@@ -835,6 +839,10 @@ export default function ExecutiveOverview() {
       )
       .catch(() => setTickets({}));
   }, []);
+
+  useEffect(() => {
+    refreshTickets();
+  }, [refreshTickets]);
 
   useEffect(() => {
     const cfg = RESOURCE_CONFIG[resourceType];
@@ -1244,6 +1252,7 @@ export default function ExecutiveOverview() {
         resourceType={AGENT_RESOURCE[resourceType]}
         open={logsModalOpen}
         tickets={tickets}
+        onTicketCreated={refreshTickets}
         onClose={() => {
           setLogsModalOpen(false);
           setSelectedJobId(null);

@@ -18,9 +18,6 @@ class PipelineRun(BaseModel):
     startTime: str
     endTime: str
     duration: str
-    owner: str
-    environment: str
-    domain: str
     costPerRun: float
 
 

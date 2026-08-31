@@ -137,10 +137,14 @@ public endpoint directly.
     provider (`incidentProviderLabel`, e.g. "Jira"/"ServiceNow"); `authRequired` is true only when
     the Cognito values are present (so **local dev without Cognito runs open**).
   - Restores tokens from `localStorage`, refreshing on load if expired.
-  - Exposes `{ loading, authRequired, isAuthenticated, user, incidentProviderLabel, login, logout }`.
-    On token change it registers the ID token with **both** API layers: `setAuthTokenGetter`
-    (generated client) and `setApiToken` (raw `apiFetch`). Components use `incidentProviderLabel` to
-    label the ticket buttons/badges dynamically (see below).
+  - Exposes `{ loading, tokenSyncDone, authRequired, isAuthenticated, user, incidentProviderLabel,
+    login, logout }`. On token change it registers the ID token with **both** API layers:
+    `setAuthTokenGetter` (generated client) and `setApiToken` (raw `apiFetch`). Components use
+    `incidentProviderLabel` to label the ticket buttons/badges dynamically (see below).
+  - `tokenSyncDone` flips true only after the token getters are installed; `App.tsx` holds the
+    spinner until then so pages never mount before requests can authenticate (a token-less first
+    request would 401 and kill a valid session on manual refresh). `apiFetch` likewise only treats a
+    401 as session expiry when the request actually carried a token.
 - **`pages/login.tsx`** — the `Login` component: branded card (ShieldCheck), username/password form,
   error banner, and a submit that calls `useAuth().login(...)`. On success the router auto-redirects.
 - **`App.tsx`** — `AppRoutes` enforces the gate (see App shell above).
@@ -267,18 +271,18 @@ Data: `useGetActiveIncidents()`, `useGetRepeatIncidents()`, `useAccount()`, plus
 - Sub-components: `IncidentTimeline({ incident, events })` (real status-change history from the
   provider — Jira changelog / ServiceNow audit; falls back to **current status only**, never
   synthetic stages) and `IncidentDetailSubsection({ incident, analyses, timeline })` (expandable
-  detail row: Root Cause Analysis + Key Findings from the stored LLM analysis, with static
-  fallbacks).
+  detail row: Root Cause Analysis + Key Findings from the stored LLM analysis, with honest
+  "not recorded" fallbacks — no fabricated text).
 
 ### `costs.tsx` (~380 lines)
 Data: `useGetCostKpis()`, `useAccount()`, and a raw `fetch` to `/api/costs/service-trend`.
 - Types: `ServiceKey` (all/glue/lambda), `RangeKey` (7d/30d/60d/90d), `TrendPoint`,
   `ServiceTrendRange`, `ServiceTrendData`; `RANGE_KEYS` maps range → response field.
 - **Five KPI tiles**, each with an info tooltip: Total Cost (MTD), Last Month (Same Period),
-  Forecast (current month, extrapolated from daily run-rate), Last Month Total, Budget Consumed
-  (with green/amber/red tone thresholds at 75%/90%).
-- Derived figures (forecast, last-month baselines, budget %) are computed client-side and scaled by
-  `account.scale`.
+  Forecast (current month), Last Month Total, Budget Consumed (with green/amber/red tone thresholds
+  at 75%/90%). All figures come from the backend (`CostKpis`) — real Cost Explorer actuals, AWS
+  GetCostForecast, and Budgets; no client-side estimates.
+- Percent deltas (MTD vs last-MTD, forecast vs last-month) are computed from those real values.
 - **Cost-per-service line chart** (Recharts `LineChart`) with Glue/Lambda/Total series, filtered by
   the service + range selectors; `chartData` is memoised.
 

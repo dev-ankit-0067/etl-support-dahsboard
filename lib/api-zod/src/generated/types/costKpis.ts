@@ -8,9 +8,8 @@
 
 export interface CostKpis {
   totalCostMtd: number;
-  avgCostPerRun: number;
-  costOfFailedRuns: number;
-  costAnomalies: number;
-  budgetUtilization: number;
+  lastMonthTotal: number;
+  lastMonthSamePeriod: number;
+  forecast: number;
   budget: number;
 }

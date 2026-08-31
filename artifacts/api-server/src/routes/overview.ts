@@ -12,24 +12,7 @@ router.get("/overview/kpis", async (_req, res): Promise<void> => {
     activeP1: 2,
     activeP2: 5,
     slaBreaches: 3,
-    avgMtta: 4.2,
-    avgMttr: 38.5,
-    topImpactedDomain: "Finance",
     slaCompliancePercent: 96.7,
-  });
-});
-
-router.get("/overview/health-distribution", async (_req, res): Promise<void> => {
-  res.json({
-    domains: [
-      { name: "Finance", healthy: 18, degraded: 4, failed: 3 },
-      { name: "Marketing", healthy: 22, degraded: 2, failed: 1 },
-      { name: "Sales", healthy: 28, degraded: 3, failed: 0 },
-      { name: "Operations", healthy: 15, degraded: 3, failed: 2 },
-      { name: "HR", healthy: 12, degraded: 1, failed: 0 },
-      { name: "Supply Chain", healthy: 14, degraded: 2, failed: 1 },
-      { name: "Customer", healthy: 9, degraded: 1, failed: 1 },
-    ],
   });
 });
 
@@ -51,13 +34,13 @@ router.get("/overview/job-status-trend", async (_req, res): Promise<void> => {
 
 router.get("/overview/failed-jobs", async (_req, res): Promise<void> => {
   res.json([
-    { id: "JOB-4821", pipelineName: "fin_gl_ledger_sync", domain: "Finance", failedAt: "2026-04-14T08:23:00Z", duration: "12m 34s", errorType: "ConnectionTimeout", owner: "Sarah Chen", severity: "P1" },
-    { id: "JOB-4819", pipelineName: "mkt_campaign_agg", domain: "Marketing", failedAt: "2026-04-14T07:45:00Z", duration: "8m 12s", errorType: "SchemaValidation", owner: "Mike Torres", severity: "P2" },
-    { id: "JOB-4815", pipelineName: "ops_inventory_load", domain: "Operations", failedAt: "2026-04-14T06:30:00Z", duration: "22m 05s", errorType: "OutOfMemory", owner: "Priya Patel", severity: "P1" },
-    { id: "JOB-4812", pipelineName: "fin_ap_reconciliation", domain: "Finance", failedAt: "2026-04-14T05:15:00Z", duration: "5m 48s", errorType: "DataQuality", owner: "James Wilson", severity: "P2" },
-    { id: "JOB-4808", pipelineName: "sc_shipment_tracker", domain: "Supply Chain", failedAt: "2026-04-14T04:02:00Z", duration: "15m 22s", errorType: "UpstreamUnavailable", owner: "Lisa Park", severity: "P3" },
-    { id: "JOB-4805", pipelineName: "cust_churn_predictor", domain: "Customer", failedAt: "2026-04-14T03:18:00Z", duration: "45m 10s", errorType: "ResourceExhausted", owner: "Alex Kumar", severity: "P2" },
-    { id: "JOB-4801", pipelineName: "hr_payroll_calc", domain: "HR", failedAt: "2026-04-14T02:45:00Z", duration: "3m 55s", errorType: "PermissionDenied", owner: "David Lee", severity: "P3" },
+    { id: "JOB-4821", pipelineName: "fin_gl_ledger_sync", failedAt: "2026-04-14T08:23:00Z", duration: "12m 34s", errorType: "ConnectionTimeout", severity: "P1" },
+    { id: "JOB-4819", pipelineName: "mkt_campaign_agg", failedAt: "2026-04-14T07:45:00Z", duration: "8m 12s", errorType: "SchemaValidation", severity: "P2" },
+    { id: "JOB-4815", pipelineName: "ops_inventory_load", failedAt: "2026-04-14T06:30:00Z", duration: "22m 05s", errorType: "OutOfMemory", severity: "P1" },
+    { id: "JOB-4812", pipelineName: "fin_ap_reconciliation", failedAt: "2026-04-14T05:15:00Z", duration: "5m 48s", errorType: "DataQuality", severity: "P2" },
+    { id: "JOB-4808", pipelineName: "sc_shipment_tracker", failedAt: "2026-04-14T04:02:00Z", duration: "15m 22s", errorType: "UpstreamUnavailable", severity: "P3" },
+    { id: "JOB-4805", pipelineName: "cust_churn_predictor", failedAt: "2026-04-14T03:18:00Z", duration: "45m 10s", errorType: "ResourceExhausted", severity: "P2" },
+    { id: "JOB-4801", pipelineName: "hr_payroll_calc", failedAt: "2026-04-14T02:45:00Z", duration: "3m 55s", errorType: "PermissionDenied", severity: "P3" },
   ]);
 });
 

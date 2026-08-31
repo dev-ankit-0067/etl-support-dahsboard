@@ -53,9 +53,14 @@ function ProtectedDashboard() {
 }
 
 function AppRoutes() {
-  const { loading, isAuthenticated, authRequired } = useAuth();
+  const { loading, tokenSyncDone, isAuthenticated, authRequired } = useAuth();
 
   if (loading) return <FullScreenSpinner />;
+
+  // Hold the spinner until the bearer-token getters are installed for the
+  // current session — pages must not mount before requests can authenticate
+  // (a token-less first request would 401 and kill a valid session).
+  if (authRequired && isAuthenticated && !tokenSyncDone) return <FullScreenSpinner />;
 
   const needLogin = authRequired && !isAuthenticated;
 

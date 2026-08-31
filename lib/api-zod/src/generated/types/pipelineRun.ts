@@ -13,7 +13,5 @@ export interface PipelineRun {
   startTime: string;
   endTime: string;
   duration: string;
-  owner: string;
-  environment: string;
-  domain: string;
+  costPerRun: number;
 }

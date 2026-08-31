@@ -6,9 +6,7 @@ from fastapi import APIRouter
 from ..config import get_settings
 from ..models.overview import (
     ActiveIncident,
-    DomainHealth,
     FailedJob,
-    HealthDistribution,
     JobStatusPoint,
     OverviewKpis,
 )
@@ -63,32 +61,7 @@ def kpis() -> OverviewKpis:
         activeP1=inc_summary.p1,
         activeP2=inc_summary.p2,
         slaBreaches=live.delayed,
-        avgMtta=0.0,
-        avgMttr=0.0,
-        topImpactedDomain="—",
         slaCompliancePercent=sla_compliance,
-    )
-
-
-@router.get("/health-distribution", response_model=HealthDistribution)
-def health_distribution() -> HealthDistribution:
-    try:
-        runs = glue_service.recent_runs()
-    except Exception as exc:
-        log.error("Glue service recent_runs failed: %s", exc)
-        runs = []
-    
-    by_domain: dict = {}
-    for r in runs:
-        bucket = by_domain.setdefault(r.domain, {"healthy": 0, "degraded": 0, "failed": 0})
-        if r.status == "Success":
-            bucket["healthy"] += 1
-        elif r.status in ("Failed", "Timed Out"):
-            bucket["failed"] += 1
-        else:
-            bucket["degraded"] += 1
-    return HealthDistribution(
-        domains=[DomainHealth(name=k, **v) for k, v in by_domain.items()]
     )
 
 

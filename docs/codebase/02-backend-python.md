@@ -199,8 +199,6 @@ Composes Glue + incident data for the Executive Overview page.
 - `GET /overview/kpis` → `OverviewKpis`. Pulls jobs, live status, recent failures from
   `glue_service`; incident counts from `incidents_service`. Derives `healthy/degraded/failed`,
   `slaCompliancePercent = healthy/total*100`. Degrades gracefully to zeros if Glue/incidents fail.
-- `GET /overview/health-distribution` → `HealthDistribution`. Buckets `glue_service.recent_runs()`
-  by domain into healthy/degraded/failed.
 - `GET /overview/job-status-trend` → `List[JobStatusPoint]` (hourly buckets, from Glue).
 - `GET /overview/failed-jobs` → `List[FailedJob]`.
 - `GET /overview/active-incidents` → `List[ActiveIncident]` (from Jira records; `acknowledged`
@@ -332,7 +330,7 @@ start/end timestamps).
 **Public functions (all `@cached("long")`):**
 | Function | Returns | Notes |
 |----------|---------|-------|
-| `kpis()` | `CostKpis` | MTD unblended cost (MONTHLY), budget from `budgets.describe_budgets` (account via STS), `costOfFailedRuns` ≈ 8% heuristic, derived `avgCostPerRun`. |
+| `kpis()` | `CostKpis` | MTD unblended cost (MONTHLY), budget from `budgets.describe_budgets` (account via STS), real last-month actuals (full + same-period, from a DAILY series), end-of-month `forecast` = MTD + `ce.get_cost_forecast` (linear day-rate fallback when AWS has no forecast). |
 | `breakdown(top_n=10)` | `CostBreakdown` | Cost grouped by the `cost_explorer_tag_key` tag, top-N pipelines. |
 | `performance()` | `CostPerformance` | 7-day and 30-day daily trends + `costRanges` map. |
 | `service_trend()` | `ServiceTrend` | Per-service (Glue, Lambda, combined) daily trends over 7/30/60/90-day windows. |

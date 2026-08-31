@@ -15,8 +15,5 @@ export interface OverviewKpis {
   activeP1: number;
   activeP2: number;
   slaBreaches: number;
-  avgMtta: number;
-  avgMttr: number;
-  topImpactedDomain: string;
   slaCompliancePercent: number;
 }

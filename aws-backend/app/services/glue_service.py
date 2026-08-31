@@ -46,20 +46,6 @@ def _iso(dt: Optional[datetime]) -> str:
     return dt.astimezone(timezone.utc).isoformat() if dt else ""
 
 
-def _domain_from_name(name: str) -> str:
-    prefix = name.split("_", 1)[0].lower() if "_" in name else name[:3].lower()
-    mapping = {
-        "fin": "Finance",
-        "mkt": "Marketing",
-        "sales": "Sales",
-        "ops": "Operations",
-        "hr": "HR",
-        "sc": "Supply Chain",
-        "cust": "Customer",
-    }
-    return mapping.get(prefix, "Other")
-
-
 def _cost_per_run(run: dict) -> float:
     dpu_seconds = run.get("DPUSeconds") or (
         run.get("MaxCapacity", 0) * (run.get("ExecutionTime", 0) or 0)
@@ -150,9 +136,6 @@ def recent_runs() -> List[PipelineRun]:
                 startTime=_iso(started),
                 endTime=_iso(completed),
                 duration=_fmt_duration(duration_s),
-                owner=r.get("WorkerType", "—"),
-                environment="Prod",
-                domain=_domain_from_name(name),
                 costPerRun=_cost_per_run(r),
             )
         )
@@ -228,11 +211,9 @@ def recent_failed_jobs(limit: int = 10) -> List[FailedJob]:
             FailedJob(
                 id=r.get("Id", ""),
                 pipelineName=name,
-                domain=_domain_from_name(name),
                 failedAt=_iso(r.get("CompletedOn") or r.get("StartedOn")),
                 duration=_fmt_duration(r.get("ExecutionTime") or 0),
                 errorType=(r.get("ErrorMessage") or "Unknown").split(":", 1)[0][:64],
-                owner=r.get("WorkerType", "—"),
                 severity="P1" if r.get("JobRunState") == "TIMEOUT" else "P2",
             )
         )

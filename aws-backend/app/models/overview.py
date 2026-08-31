@@ -12,21 +12,7 @@ class OverviewKpis(BaseModel):
     activeP1: int
     activeP2: int
     slaBreaches: int
-    avgMtta: float
-    avgMttr: float
-    topImpactedDomain: str
     slaCompliancePercent: float
-
-
-class DomainHealth(BaseModel):
-    name: str
-    healthy: int
-    degraded: int
-    failed: int
-
-
-class HealthDistribution(BaseModel):
-    domains: List[DomainHealth]
 
 
 class JobStatusPoint(BaseModel):
@@ -39,11 +25,9 @@ class JobStatusPoint(BaseModel):
 class FailedJob(BaseModel):
     id: str
     pipelineName: str
-    domain: str
     failedAt: str
     duration: str
     errorType: str
-    owner: str
     severity: str
 
 

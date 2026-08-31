@@ -28,13 +28,16 @@ export function notifyUnauthorized(): void {
 
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  if (_token && !headers.has("Authorization")) {
+  const sentToken = _token !== null && !headers.has("Authorization");
+  if (sentToken) {
     headers.set("Authorization", `Bearer ${_token}`);
   }
   if (_project && !headers.has("X-Project")) {
     headers.set("X-Project", _project);
   }
   const res = await fetch(input, { ...init, headers });
-  if (res.status === 401) notifyUnauthorized();
+  // Only treat a 401 as session expiry when this request actually carried a
+  // bearer token — token-less calls (e.g. during bootstrap) 401 harmlessly.
+  if (res.status === 401 && sentToken) notifyUnauthorized();
   return res;
 }

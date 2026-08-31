@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useGetLivePipelines, useGetPipelineRuns } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Play, XCircle, Clock, AlertTriangle, Loader2 } from "lucide-react";
 import PipelineRunsModal from "@/components/pipelines/PipelineRunsModal";
@@ -70,9 +69,6 @@ export default function LivePipelines() {
                 <TableHead className="text-xs">Status</TableHead>
                 <TableHead className="text-xs">Start Time</TableHead>
                 <TableHead className="text-xs">Duration</TableHead>
-                <TableHead className="text-xs">Domain</TableHead>
-                <TableHead className="text-xs">Owner</TableHead>
-                <TableHead className="text-xs">Env</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -90,13 +86,6 @@ export default function LivePipelines() {
                   <TableCell>{statusBadge(run.status)}</TableCell>
                   <TableCell className="text-xs">{run.startTime ? new Date(run.startTime).toLocaleTimeString() : "-"}</TableCell>
                   <TableCell className="text-xs">{run.duration}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-xs">{run.domain}</Badge>
-                  </TableCell>
-                  <TableCell className="text-xs">{run.owner}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">{run.environment}</Badge>
-                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

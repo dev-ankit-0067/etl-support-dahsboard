@@ -20,7 +20,6 @@ import type {
   DurationTrendItem,
   FailedJob,
   FailurePattern,
-  HealthDistribution,
   HealthStatus,
   Incident,
   IncidentQueueItem,
@@ -189,81 +188,6 @@ export function useGetOverviewKpis<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetOverviewKpisQueryOptions(options);
-
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
-    queryKey: QueryKey;
-  };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-/**
- * @summary Pipeline health distribution
- */
-export const getGetHealthDistributionUrl = () => {
-  return `/api/overview/health-distribution`;
-};
-
-export const getHealthDistribution = async (
-  options?: RequestInit,
-): Promise<HealthDistribution> => {
-  return customFetch<HealthDistribution>(getGetHealthDistributionUrl(), {
-    ...options,
-    method: "GET",
-  });
-};
-
-export const getGetHealthDistributionQueryKey = () => {
-  return [`/api/overview/health-distribution`] as const;
-};
-
-export const getGetHealthDistributionQueryOptions = <
-  TData = Awaited<ReturnType<typeof getHealthDistribution>>,
-  TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getHealthDistribution>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getGetHealthDistributionQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getHealthDistribution>>
-  > = ({ signal }) => getHealthDistribution({ signal, ...requestOptions });
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getHealthDistribution>>,
-    TError,
-    TData
-  > & { queryKey: QueryKey };
-};
-
-export type GetHealthDistributionQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getHealthDistribution>>
->;
-export type GetHealthDistributionQueryError = ErrorType<unknown>;
-
-/**
- * @summary Pipeline health distribution
- */
-
-export function useGetHealthDistribution<
-  TData = Awaited<ReturnType<typeof getHealthDistribution>>,
-  TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getHealthDistribution>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetHealthDistributionQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

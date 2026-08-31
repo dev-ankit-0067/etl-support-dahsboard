@@ -27,6 +27,8 @@ interface AuthUser {
 
 interface AuthContextValue {
   loading: boolean;
+  /** True once the bearer-token getters are installed for the current session. */
+  tokenSyncDone: boolean;
   authRequired: boolean; // true once a Cognito pool/client is configured
   isAuthenticated: boolean;
   user: AuthUser | null;
@@ -73,6 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [incidentProviderLabel, setIncidentProviderLabel] = useState("Jira");
   const [tokens, setTokens] = useState<Tokens | null>(null);
   const [loading, setLoading] = useState(true);
+  // Set to true only after the token getters below have actually been installed,
+  // so pages never mount before requests can carry the bearer token (otherwise
+  // the first token-less API call 401s and kills a valid session on refresh).
+  const [tokenSyncDone, setTokenSyncDone] = useState(false);
   const { toast } = useToast();
 
   // Current tokens mirrored in a ref so event handlers see the latest value.
@@ -86,9 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setAuthTokenGetter(() => tokens?.idToken ?? null);
     setApiToken(tokens?.idToken ?? null);
+    setTokenSyncDone(true);
     return () => {
       setAuthTokenGetter(null);
       setApiToken(null);
+      setTokenSyncDone(false);
     };
   }, [tokens]);
 
@@ -197,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ loading, authRequired, isAuthenticated, user, incidentProviderLabel, login, logout }}
+      value={{ loading, tokenSyncDone, authRequired, isAuthenticated, user, incidentProviderLabel, login, logout }}
     >
       {children}
     </AuthContext.Provider>

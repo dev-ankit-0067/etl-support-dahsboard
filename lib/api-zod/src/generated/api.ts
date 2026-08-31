@@ -26,24 +26,7 @@ export const GetOverviewKpisResponse = zod.object({
   activeP1: zod.number(),
   activeP2: zod.number(),
   slaBreaches: zod.number(),
-  avgMtta: zod.number(),
-  avgMttr: zod.number(),
-  topImpactedDomain: zod.string(),
   slaCompliancePercent: zod.number(),
-});
-
-/**
- * @summary Pipeline health distribution
- */
-export const GetHealthDistributionResponse = zod.object({
-  domains: zod.array(
-    zod.object({
-      name: zod.string(),
-      healthy: zod.number(),
-      degraded: zod.number(),
-      failed: zod.number(),
-    }),
-  ),
 });
 
 /**
@@ -65,11 +48,9 @@ export const GetJobStatusTrendResponse = zod.array(
 export const GetFailedJobsResponseItem = zod.object({
   id: zod.string(),
   pipelineName: zod.string(),
-  domain: zod.string(),
   failedAt: zod.string(),
   duration: zod.string(),
   errorType: zod.string(),
-  owner: zod.string(),
   severity: zod.string(),
 });
 export const GetFailedJobsResponse = zod.array(GetFailedJobsResponseItem);
@@ -115,9 +96,7 @@ export const GetPipelineRunsResponseItem = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   duration: zod.string(),
-  owner: zod.string(),
-  environment: zod.string(),
-  domain: zod.string(),
+  costPerRun: zod.number(),
 });
 export const GetPipelineRunsResponse = zod.array(GetPipelineRunsResponseItem);
 
@@ -251,10 +230,9 @@ export const GetRcaMetricsResponse = zod.object({
  */
 export const GetCostKpisResponse = zod.object({
   totalCostMtd: zod.number(),
-  avgCostPerRun: zod.number(),
-  costOfFailedRuns: zod.number(),
-  costAnomalies: zod.number(),
-  budgetUtilization: zod.number(),
+  lastMonthTotal: zod.number(),
+  lastMonthSamePeriod: zod.number(),
+  forecast: zod.number(),
   budget: zod.number(),
 });
 

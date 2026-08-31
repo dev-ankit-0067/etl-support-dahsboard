@@ -78,11 +78,25 @@ def kpis() -> CostKpis:
     end = today + timedelta(days=1)
     ce = _ce_client()
 
+    # Previous month window (day 1 → last day of last month).
+    last_month_end = start - timedelta(days=1)
+    last_month_start = last_month_end.replace(day=1)
+
     try:
         flt = _merge_filter(None)
         total = ce.get_cost_and_usage(
             TimePeriod={"Start": start.isoformat(), "End": end.isoformat()},
             Granularity="MONTHLY",
+            Metrics=["UnblendedCost"],
+            **({"Filter": flt} if flt else {}),
+        )
+        # Daily last-month series so we can split full-month vs same-period actuals.
+        lm_resp = ce.get_cost_and_usage(
+            TimePeriod={
+                "Start": last_month_start.isoformat(),
+                "End": (last_month_end + timedelta(days=1)).isoformat(),
+            },
+            Granularity="DAILY",
             Metrics=["UnblendedCost"],
             **({"Filter": flt} if flt else {}),
         )
@@ -97,6 +111,15 @@ def kpis() -> CostKpis:
     total_cost = float(
         total["ResultsByTime"][0]["Total"]["UnblendedCost"]["Amount"] or 0.0
     )
+
+    last_month_total = 0.0
+    last_month_same_period = 0.0
+    for r in lm_resp.get("ResultsByTime", []):
+        amount = float(r["Total"]["UnblendedCost"]["Amount"] or 0.0)
+        last_month_total += amount
+        if int(r["TimePeriod"]["Start"].split("-")[2]) <= today.day:
+            last_month_same_period += amount
+
     budget_amount = 0.0
     for b in budgets.get("Budgets", []):
         if settings.cost_explorer_tag_key in (b.get("Name", "")):
@@ -107,15 +130,42 @@ def kpis() -> CostKpis:
             budgets["Budgets"][0].get("BudgetLimit", {}).get("Amount", 0.0)
         )
 
-    failed_cost = total_cost * 0.08  # heuristic; refine with job-state correlation
-    runs = max(1, int(total_cost / 5.0))
-    avg = round(total_cost / runs, 2) if runs else 0.0
+    # AWS forecast for the rest of the month; end-of-month = MTD actual + forecast.
+    # Falls back to a linear day-rate extrapolation when the forecast API is
+    # unavailable (e.g. not enough billing history).
+    forecast = round(_forecast_month_end(ce, flt, today, start, total_cost), 2)
+
     return CostKpis(
         totalCostMtd=round(total_cost, 2),
-        avgCostPerRun=avg,
-        costOfFailedRuns=round(failed_cost, 2),
+        lastMonthTotal=round(last_month_total, 2),
+        lastMonthSamePeriod=round(last_month_same_period, 2),
+        forecast=forecast,
         budget=round(budget_amount or total_cost * 1.2, 2),
     )
+
+
+def _forecast_month_end(ce, flt, today: date, month_start: date, total_cost: float) -> float:
+    """End-of-month projection: MTD actual + AWS GetCostForecast for the rest.
+
+    Falls back to the current daily run-rate extrapolation when the forecast
+    API reports that no forecast is available yet.
+    """
+    month_end = today.replace(day=28) + timedelta(days=4)
+    month_end = month_end.replace(day=1) - timedelta(days=1)  # last day of month
+    try:
+        fc = ce.get_cost_forecast(
+            TimePeriod={"Start": today.isoformat(), "End": month_end.isoformat()},
+            Metric="UNBLENDED_COST",
+            Granularity="MONTHLY",
+            **({"Filter": flt} if flt else {}),
+        )
+        remaining = float(fc["Total"]["Amount"] or 0.0)
+        return total_cost + remaining
+    except (BotoCoreError, ClientError) as exc:
+        log.warning("GetCostForecast unavailable; using day-rate extrapolation: %s", exc)
+        days_in_month = (month_end - month_start).days + 1
+        daily = total_cost / max(today.day, 1)
+        return daily * days_in_month
 
 
 @cached("long")

@@ -67,7 +67,7 @@ incidents, rca, costs, lambdas, logs). Every path is therefore served under `/ap
 | Module | Endpoints |
 |--------|-----------|
 | `health.ts` | `/healthz` |
-| `overview.ts` | `/overview/kpis`, `/overview/health-distribution`, `/overview/job-status-trend` (24 synthetic hourly points), `/overview/failed-jobs`, `/overview/active-incidents` |
+| `overview.ts` | `/overview/kpis`, `/overview/job-status-trend` (24 synthetic hourly points), `/overview/failed-jobs`, `/overview/active-incidents` |
 | `pipelines.ts` | `/pipelines/live`, `/pipelines/runs`, `/pipelines/history/:pipelineName` |
 | `performance.ts` | `/performance/duration-trend`, `/performance/slowest-jobs`, `/performance/throughput` |
 | `incidents.ts` | `/incidents/summary`, `/incidents/queue`, `/incidents/oncall`, `/incidents/mttr-trend` |

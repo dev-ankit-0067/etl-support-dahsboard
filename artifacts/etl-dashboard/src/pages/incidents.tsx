@@ -175,25 +175,25 @@ function IncidentDetailSubsection({ incident, analyses, timeline }: { incident: 
   const rcaEntry = repeats?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
   const isResolved = incident.status === "Resolved";
 
-  const daysOpen = rcaEntry?.lastSeen ? Math.floor((Date.now() - new Date(rcaEntry.lastSeen).getTime()) / (1000 * 60 * 60 * 24)) : 2;
+  // Days since creation (real data); null when the timestamp is unavailable.
+  const daysOpen = incident.createdAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(incident.createdAt).getTime()) / (1000 * 60 * 60 * 24)))
+    : null;
 
   // LLM-generated analysis recorded when the ticket was created (falls back to
-  // repeat-incident RCA, then to a placeholder for incidents without analysis).
+  // repeat-incident RCA, then to an honest "not recorded" note — no fabricated text).
   const analysis = analyses[incident.id];
 
-  const rcaSummary = analysis?.rootCause ||
+  const rcaSummary =
+    analysis?.rootCause ||
     rcaEntry?.rootCause ||
     (isResolved
-      ? "A schema mismatch introduced during the latest upstream release caused repeated job failures until the pipeline was rolled back and the source contract was corrected."
-      : "Investigation in progress. Initial analysis points to an upstream change introducing unexpected payload variance; on-call team is collecting trace data and validating recent deployments.");
+      ? "No root cause analysis was recorded for this incident."
+      : "No root cause analysis has been recorded for this incident yet.");
 
   const keyFindings = analysis?.keyFindings?.length
     ? analysis.keyFindings
-    : [
-        "Upstream schema drift introduced an unexpected field change.",
-        "Validation rules did not fail fast before the transformation step.",
-        "Retry behavior amplified the impact by repeatedly reprocessing failed batches.",
-      ];
+    : ["No key findings were recorded for this incident."];
 
   return (
     <div className="bg-slate-50 border-t border-b">
@@ -210,7 +210,7 @@ function IncidentDetailSubsection({ incident, analyses, timeline }: { incident: 
           Aging: <span className="font-semibold text-slate-700">{incident.age}</span>
         </span>
         <span className="text-muted-foreground">
-          Days open: <span className="font-semibold text-slate-700">{daysOpen}d</span>
+          Days open: <span className="font-semibold text-slate-700">{daysOpen === null ? "—" : `${daysOpen}d`}</span>
         </span>
         <span className="text-muted-foreground">
           Owner: <span className="font-semibold text-slate-700">{incident.owner}</span>

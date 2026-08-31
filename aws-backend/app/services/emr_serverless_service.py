@@ -86,9 +86,6 @@ def recent_runs() -> List[PipelineRun]:
                 startTime=_iso(latest.get("createdAt")),
                 endTime=_iso(latest.get("updatedAt")),
                 duration=_fmt_duration(latest.get("createdAt"), latest.get("updatedAt")),
-                owner="—",
-                environment="Prod",
-                domain="EMR Serverless",
                 costPerRun=0.0,
             )
         )

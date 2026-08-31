@@ -17,8 +17,6 @@ export * from "./costPerformanceCostVsVolumeItem";
 export * from "./durationTrendItem";
 export * from "./failedJob";
 export * from "./failurePattern";
-export * from "./healthDistribution";
-export * from "./healthDistributionDomainsItem";
 export * from "./healthStatus";
 export * from "./incident";
 export * from "./incidentQueueItem";

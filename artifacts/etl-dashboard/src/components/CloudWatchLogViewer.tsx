@@ -52,6 +52,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   tickets?: Record<string, { incidentId: string; url?: string | null }>;
+  /** Invoked after a ticket is created, so the page can refresh its mappings. */
+  onTicketCreated?: () => void;
 }
 
 const RESOURCE_LABEL: Record<ResourceType, string> = {
@@ -69,6 +71,7 @@ export default function CloudWatchLogViewer({
   open,
   onClose,
   tickets,
+  onTicketCreated,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
@@ -186,6 +189,7 @@ export default function CloudWatchLogViewer({
       if (result.analysis) setAnalysisResult(result.analysis);
       if (result.jira_key) {
         setJiraResult({ issueKey: result.jira_key });
+        onTicketCreated?.();
         toast({
           title: `${incidentProviderLabel} ticket created`,
           description: result.jira_key,

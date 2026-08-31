@@ -50,19 +50,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/OverviewKpis"
 
-  /overview/health-distribution:
-    get:
-      operationId: getHealthDistribution
-      tags: [overview]
-      summary: Pipeline health distribution
-      responses:
-        "200":
-          description: Health distribution data
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthDistribution"
-
   /overview/job-status-trend:
     get:
       operationId: getJobStatusTrend
@@ -363,12 +350,6 @@ components:
           type: integer
         slaBreaches:
           type: integer
-        avgMtta:
-          type: number
-        avgMttr:
-          type: number
-        topImpactedDomain:
-          type: string
         slaCompliancePercent:
           type: number
       required:
@@ -380,34 +361,7 @@ components:
         - activeP1
         - activeP2
         - slaBreaches
-        - avgMtta
-        - avgMttr
-        - topImpactedDomain
         - slaCompliancePercent
-
-    HealthDistribution:
-      type: object
-      properties:
-        domains:
-          type: array
-          items:
-            type: object
-            properties:
-              name:
-                type: string
-              healthy:
-                type: integer
-              degraded:
-                type: integer
-              failed:
-                type: integer
-            required:
-              - name
-              - healthy
-              - degraded
-              - failed
-      required:
-        - domains
 
     JobStatusTrendItem:
       type: object
@@ -433,26 +387,21 @@ components:
           type: string
         pipelineName:
           type: string
-        domain:
-          type: string
         failedAt:
           type: string
         duration:
           type: string
         errorType:
           type: string
-        owner:
-          type: string
         severity:
           type: string
       required:
         - id
         - pipelineName
-        - domain
         - failedAt
         - duration
         - errorType
-        - owner
+        - severity
         - severity
 
     Incident:
@@ -528,12 +477,8 @@ components:
           type: string
         duration:
           type: string
-        owner:
-          type: string
-        environment:
-          type: string
-        domain:
-          type: string
+        costPerRun:
+          type: number
       required:
         - id
         - pipelineName
@@ -541,9 +486,7 @@ components:
         - startTime
         - endTime
         - duration
-        - owner
-        - environment
-        - domain
+        - costPerRun
 
     DurationTrendItem:
       type: object
@@ -751,22 +694,19 @@ components:
       properties:
         totalCostMtd:
           type: number
-        avgCostPerRun:
+        lastMonthTotal:
           type: number
-        costOfFailedRuns:
+        lastMonthSamePeriod:
           type: number
-        costAnomalies:
-          type: integer
-        budgetUtilization:
+        forecast:
           type: number
         budget:
           type: number
       required:
         - totalCostMtd
-        - avgCostPerRun
-        - costOfFailedRuns
-        - costAnomalies
-        - budgetUtilization
+        - lastMonthTotal
+        - lastMonthSamePeriod
+        - forecast
         - budget
 
     CostBreakdown:

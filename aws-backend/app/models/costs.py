@@ -5,8 +5,9 @@ from pydantic import BaseModel
 
 class CostKpis(BaseModel):
     totalCostMtd: float
-    avgCostPerRun: float
-    costOfFailedRuns: float
+    lastMonthTotal: float
+    lastMonthSamePeriod: float
+    forecast: float
     budget: float
 
 

@@ -18,21 +18,7 @@ export interface OverviewKpis {
   activeP1: number;
   activeP2: number;
   slaBreaches: number;
-  avgMtta: number;
-  avgMttr: number;
-  topImpactedDomain: string;
   slaCompliancePercent: number;
-}
-
-export type HealthDistributionDomainsItem = {
-  name: string;
-  healthy: number;
-  degraded: number;
-  failed: number;
-};
-
-export interface HealthDistribution {
-  domains: HealthDistributionDomainsItem[];
 }
 
 export interface JobStatusTrendItem {
@@ -45,11 +31,9 @@ export interface JobStatusTrendItem {
 export interface FailedJob {
   id: string;
   pipelineName: string;
-  domain: string;
   failedAt: string;
   duration: string;
   errorType: string;
-  owner: string;
   severity: string;
 }
 
@@ -82,9 +66,7 @@ export interface PipelineRun {
   startTime: string;
   endTime: string;
   duration: string;
-  owner: string;
-  environment: string;
-  domain: string;
+  costPerRun: number;
 }
 
 export interface DurationTrendItem {
@@ -172,10 +154,9 @@ export interface RcaMetrics {
 
 export interface CostKpis {
   totalCostMtd: number;
-  avgCostPerRun: number;
-  costOfFailedRuns: number;
-  costAnomalies: number;
-  budgetUtilization: number;
+  lastMonthTotal: number;
+  lastMonthSamePeriod: number;
+  forecast: number;
   budget: number;
 }
 

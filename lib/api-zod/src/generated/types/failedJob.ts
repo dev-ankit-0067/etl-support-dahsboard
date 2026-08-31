@@ -9,10 +9,8 @@
 export interface FailedJob {
   id: string;
   pipelineName: string;
-  domain: string;
   failedAt: string;
   duration: string;
   errorType: string;
-  owner: string;
   severity: string;
 }
