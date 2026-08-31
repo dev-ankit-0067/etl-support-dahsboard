@@ -249,7 +249,9 @@ def recent_invocations(limit: int = 12) -> List[LambdaInvocation]:
         end = latest.get("end")
         out.append(
             LambdaInvocation(
-                id=f"INV-{abs(hash(name)) % 100000:05d}",
+                # The function name doubles as the row id so it matches the log id
+                # used by the agents / ticket mappings (log → incident link).
+                id=name,
                 functionName=name,
                 status=_status(errors, throttles, invocations),
                 startTime=start.isoformat() if start else "",

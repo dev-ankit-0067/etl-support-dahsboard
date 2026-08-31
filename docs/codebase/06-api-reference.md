@@ -122,7 +122,8 @@ Backed by the `log_ticket_mappings` table (`DATABASE_URL`, SQLite by default —
 
 **`LambdaKpis`** — `totalFunctions, healthy, withErrors, throttled, avgDurationMs,
 coldStartsPercent, totalInvocations24h`
-**`LambdaInvocation`** — `id, functionName, status, startTime, endTime, duration, costPerRun`
+**`LambdaInvocation`** — `id, functionName, status, startTime, endTime, duration, costPerRun` —
+`id` is the function name (so it matches the log id used by agents / ticket mappings).
 
 ---
 

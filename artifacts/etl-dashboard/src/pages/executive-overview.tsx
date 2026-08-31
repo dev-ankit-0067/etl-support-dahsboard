@@ -178,6 +178,25 @@ interface TicketLink {
   createdAt?: string | null;
 }
 
+// Renders a ticket as a hyperlink, or "—" when no mapping exists.
+function TicketCell({ t }: { t?: TicketLink }) {
+  if (!t) return <span className="text-xs text-muted-foreground">—</span>;
+  if (t.url) {
+    return (
+      <a
+        href={t.url}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+      >
+        <ExternalLink className="h-3 w-3" />
+        {t.incidentId}
+      </a>
+    );
+  }
+  return <span className="text-xs font-medium text-slate-500">{t.incidentId}</span>;
+}
+
 function statusBadge(status: string) {
   const map: Record<string, string> = {
     Running: "bg-blue-100 text-blue-700 border-blue-200",
@@ -710,26 +729,7 @@ function S3LogsSection({
                     <TableCell className="py-2 text-xs text-muted-foreground">{fmtTime(r.lastModified ?? "")}</TableCell>
                     <TableCell className="py-2 text-xs text-right font-mono">{fmtBytes(r.sizeBytes)}</TableCell>
                     <TableCell className="py-2">
-                      {(() => {
-                        const t = tickets[r.id];
-                        return t ? (
-                          t.url ? (
-                            <a
-                              href={t.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              {t.incidentId}
-                            </a>
-                          ) : (
-                            <span className="text-xs font-medium text-slate-500">{t.incidentId}</span>
-                          )
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        );
-                      })()}
+                      <TicketCell t={tickets[r.id]} />
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
@@ -1095,12 +1095,13 @@ export default function ExecutiveOverview() {
                     {costHeader}
                   </span>
                 </TableHead>
+                <TableHead className="text-xs">Ticket</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8">
+                  <TableCell colSpan={8} className="py-8">
                     <div className="flex items-center justify-center text-muted-foreground text-sm">
                       {dateRange === "today"
                         ? `No ${cfg.emptyNoun} run today`
@@ -1175,10 +1176,13 @@ export default function ExecutiveOverview() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
+                        <TableCell className="py-2">
+                          <TicketCell t={tickets[row.id]} />
+                        </TableCell>
                       </TableRow>
                       {isExpanded && row.expandable && (
                         <TableRow className="hover:bg-transparent">
-                          <TableCell colSpan={7} className="p-0">
+                          <TableCell colSpan={8} className="p-0">
                             {isLambda ? (
                               <LambdaHistorySubsection
                                 functionName={row.name}
