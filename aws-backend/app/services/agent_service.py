@@ -10,9 +10,12 @@ from langchain_core.tools import tool
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 
 from ..config import get_settings
+from .. import remote_config
 from ..services import cloudwatch_service
 from ..services import incidents_service
 from ..services import s3_logs_service
+from ..services import tags_service
+from ..services import ticket_mapping_service
 
 log = logging.getLogger(__name__)
 
@@ -223,6 +226,17 @@ def run_jira_creation_agent(log_id: str, resource_type: str = "job") -> Dict[str
         if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "create_incident_ticket":
             jira_key = str(msg.content)
             break
+
+    if jira_key:
+        # Record the log → ticket mapping so the overview can link the log to the
+        # ticket. Failure to record must never fail the request.
+        ticket_mapping_service.record_ticket(
+            log_id=log_id,
+            incident_id=jira_key,
+            provider=remote_config.incident_provider(),
+            resource_type=resource_type,
+            project=tags_service.active_project(),
+        )
 
     return {
         "log_id": log_id,

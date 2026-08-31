@@ -108,6 +108,18 @@ project (X-Project header); when project is `all`, every prefix is listed.
 the project. Needs `S3_LOG_BUCKET` set and `s3:GetObject`/`s3:ListBucket` IAM. Path traversal (`..`)
 is rejected.
 
+## Ticket mappings  (log → incident link, FastAPI + SQLAlchemy only)
+
+Associates a log identifier with the incident ticket (Jira/ServiceNow) raised for it — recorded
+automatically when `/agents/analyze` `type=jira` returns a ticket key.
+
+| Method | Path | Backend | Response type |
+|--------|------|---------|---------------|
+| GET | `/ticket-mappings` | FastAPI ✅ | `{ mappings: { log_id: { incidentId, provider, url, resourceType, project, createdAt } } }` — latest mapping per log id; optional `?log_ids=a,b` filters |
+
+Backed by the `log_ticket_mappings` table (`DATABASE_URL`, SQLite by default — see
+[02-backend-python.md](./02-backend-python.md#ticket-mappings)).
+
 **`LambdaKpis`** — `totalFunctions, healthy, withErrors, throttled, avgDurationMs,
 coldStartsPercent, totalInvocations24h`
 **`LambdaInvocation`** — `id, functionName, status, startTime, endTime, duration, costPerRun`

@@ -12,10 +12,11 @@ from . import __version__
 from .auth import require_auth
 from .config import get_settings
 from .context import current_project
+from .database import init_db
 from .logging_config import configure_logging
 from .routers import (
     agents, cloudwatch, costs, emr, emr_serverless, health, incidents,
-    lambdas, meta, overview, pipelines, rca, s3_logs,
+    lambdas, meta, overview, pipelines, rca, s3_logs, ticket_mappings,
 )
 
 log = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ class ProjectContextMiddleware:
 def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
+    init_db()
 
     app = FastAPI(
         title="ETL Production Support & Cost Insights API",
@@ -82,6 +84,7 @@ def create_app() -> FastAPI:
         cloudwatch.router,
         agents.router,
         s3_logs.router,
+        ticket_mappings.router,
     ]
     for r in protected_routers:
         app.include_router(r, prefix=settings.api_prefix, dependencies=[Depends(require_auth)])

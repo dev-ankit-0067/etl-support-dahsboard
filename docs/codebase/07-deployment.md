@@ -93,6 +93,7 @@ see `aws.py`.
 | AWS | `AWS_REGION`, `AWS_PROFILE`, `AWS_ACCESS_KEY_ID/SECRET/SESSION_TOKEN` (optional) |
 | boto | `BOTO_MAX_ATTEMPTS`, `BOTO_RETRY_MODE`, `BOTO_CONNECT_TIMEOUT`, `BOTO_READ_TIMEOUT` |
 | Cache | `CACHE_TTL_SHORT/MEDIUM/LONG` |
+| Database | `DATABASE_URL` (default `sqlite:///./opsguardian.db`) — log → incident ticket mappings; set to Postgres (`postgresql+psycopg://…`, install `psycopg[binary]`) for durable multi-instance storage |
 | Domain | `GLUE_JOB_NAME_FILTER`, `LAMBDA_FUNCTION_TAG_KEY/VALUE`, `COST_EXPLORER_TAG_KEY`, `SLA_BREACH_MINUTES` |
 | Log sources | `EMR_LOG_GROUP`, `EMR_SERVERLESS_LOG_GROUP`, `S3_LOG_BUCKET` (custom S3 log source) |
 | Remote (S3) config | `CONFIG_S3_BUCKET` + `CONFIG_S3_KEY` (JSON document, optional), `CONFIG_REFRESH_SECONDS` (default 60) — see §8b |

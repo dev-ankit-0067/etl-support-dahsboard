@@ -40,6 +40,7 @@ import {
   Sparkles,
   TicketPlus,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 
 interface JobRun {
@@ -166,6 +167,15 @@ interface ResourceRun {
   project?: string;
   lastModified?: string;
   sizeBytes?: number;
+}
+
+// Log → incident ticket link (GET /api/ticket-mappings).
+interface TicketLink {
+  incidentId: string;
+  provider?: string;
+  url?: string | null;
+  resourceType?: string | null;
+  createdAt?: string | null;
 }
 
 function statusBadge(status: string) {
@@ -597,12 +607,14 @@ function fmtBytes(n?: number): string {
 function S3LogsSection({
   runs,
   dateRange,
+  tickets,
   onAnalyzeLogs,
   onGetRca,
   onLogJiraTicket,
 }: {
   runs: ResourceRun[];
   dateRange: string;
+  tickets: Record<string, TicketLink>;
   onAnalyzeLogs: (id: string, name: string) => void;
   onGetRca: (id: string) => void;
   onLogJiraTicket: (id: string) => void;
@@ -673,13 +685,14 @@ function S3LogsSection({
                 <TableHead className="text-xs">Project</TableHead>
                 <TableHead className="text-xs">Last Modified</TableHead>
                 <TableHead className="text-xs text-right">Size</TableHead>
+                <TableHead className="text-xs">Ticket</TableHead>
                 <TableHead className="text-xs text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8">
+                  <TableCell colSpan={6} className="py-8">
                     <div className="flex items-center justify-center text-muted-foreground text-sm">
                       No log files in selected period
                     </div>
@@ -696,6 +709,28 @@ function S3LogsSection({
                     </TableCell>
                     <TableCell className="py-2 text-xs text-muted-foreground">{fmtTime(r.lastModified ?? "")}</TableCell>
                     <TableCell className="py-2 text-xs text-right font-mono">{fmtBytes(r.sizeBytes)}</TableCell>
+                    <TableCell className="py-2">
+                      {(() => {
+                        const t = tickets[r.id];
+                        return t ? (
+                          t.url ? (
+                            <a
+                              href={t.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              {t.incidentId}
+                            </a>
+                          ) : (
+                            <span className="text-xs font-medium text-slate-500">{t.incidentId}</span>
+                          )
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
                         <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5" onClick={() => onAnalyzeLogs(r.id, r.runId ?? r.id)}>
@@ -774,6 +809,18 @@ export default function ExecutiveOverview() {
   const [resourceRuns, setResourceRuns] = useState<ResourceRun[]>([]);
   // Blocks the page with a loading overlay while a newly-selected resource loads.
   const [resourceLoading, setResourceLoading] = useState(false);
+  // Log → incident ticket links (Jira/ServiceNow) keyed by log id.
+  const [tickets, setTickets] = useState<Record<string, TicketLink>>({});
+
+  useEffect(() => {
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+    apiFetch(`${base}/api/ticket-mappings`)
+      .then((r) => r.json())
+      .then((d) =>
+        setTickets(d?.mappings && typeof d.mappings === "object" ? d.mappings : {}),
+      )
+      .catch(() => setTickets({}));
+  }, []);
 
   useEffect(() => {
     const cfg = RESOURCE_CONFIG[resourceType];
@@ -927,6 +974,7 @@ export default function ExecutiveOverview() {
         <S3LogsSection
           runs={resourceRuns}
           dateRange={dateRange}
+          tickets={tickets}
           onAnalyzeLogs={(id, name) => {
             setSelectedJobId(id);
             setSelectedJobName(name);

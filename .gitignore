@@ -60,3 +60,6 @@ __pycache__/
 /include/
 /lib/python3.*/
 /pyvenv.cfg
+# SQLite database (ticket mappings) — local dev only
+aws-backend/*.db
+aws-backend/*.db-*

@@ -452,6 +452,29 @@ the remote config's provider (env `INCIDENT_PROVIDER` fallback).
 
 ---
 
+## Ticket mappings (database)
+
+When the ticket flow (`run_jira_creation_agent`, `type="jira"`) returns a ticket key, the
+log → incident association is persisted so the Executive Overview can link each log row to its
+ticket:
+
+- **`app/database.py`** — SQLAlchemy engine/session. `DATABASE_URL` (env, default
+  `sqlite:///./opsguardian.db`) — SQLite out of the box, Postgres/any SQLAlchemy backend via a
+  config change. Tables are created at startup (`init_db()` in `create_app`); SQLite runs in WAL
+  mode with a busy timeout for the gunicorn workers.
+- **`app/models/ticket_mapping.py`** — `log_ticket_mappings` table: `id`, `log_id` (indexed),
+  `incident_id`, `provider` (`jira`/`servicenow`), `ticket_url`, `resource_type`, `project`,
+  `created_at`; unique on `(log_id, incident_id)`.
+- **`app/services/ticket_mapping_service.py`** — `record_ticket(...)` (idempotent upsert; builds a
+  best-effort ticket URL from the provider settings; never raises — recording failure can't break
+  ticket creation) and `get_mappings(log_ids=None)` (latest mapping per log id).
+- **`app/routers/ticket_mappings.py`** — `GET /api/ticket-mappings` (auth-protected; optional
+  `?log_ids=...` filter) → `{ mappings: {log_id: {...}} }`, consumed by the Executive Overview S3
+  log table (Ticket column with hyperlink).
+
+> Note: the SQLite file lives in the container working dir and is **ephemeral** — mappings reset on
+> task restarts. Set `DATABASE_URL` to Postgres for durable storage.
+
 ## AI agents
 
 A single HuggingFace-backed **LangChain tool-calling agent**. Every AI button in the UI routes to it

@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     cache_ttl_long: int = 1800     # seconds (cost explorer, history)
     cache_maxsize: int = 1024
 
+    # ---- Database (log → incident ticket mappings) ----
+    # SQLAlchemy URL. SQLite by default; set to Postgres etc. to switch:
+    #   DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db
+    database_url: str = Field(
+        default="sqlite:///./opsguardian.db",
+        description="SQLAlchemy database URL (env: DATABASE_URL).",
+    )
+
     # ---- Remote (S3) runtime configuration ----
     # Optional JSON document in S3 that overrides env-based settings at runtime:
     #   { "incidentProvider": "jira|servicenow", "tagKey": "...",
