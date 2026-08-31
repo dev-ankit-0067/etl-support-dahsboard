@@ -217,9 +217,15 @@ const rcaDetails = [
 ];
 
 router.get("/rca/lifecycle", async (_req, res): Promise<void> => {
-  res.json(rcaDetails.map(({ id, incidentTitle, pipeline, rcaStatus, daysOpen, actionItems, completedActions }) => ({
-    id, incidentTitle, pipeline, rcaStatus, daysOpen, actionItems, completedActions,
-  })));
+  res.json({
+    stages: [
+      { stage: "Detect", avgMinutes: 0.0 },
+      { stage: "Acknowledge", avgMinutes: 0.0 },
+      { stage: "Mitigate", avgMinutes: 0.0 },
+      { stage: "Resolve", avgMinutes: 186.0 },
+      { stage: "RCA Published", avgMinutes: 0.0 },
+    ],
+  });
 });
 
 router.get("/rca/detail/:id", async (req, res): Promise<void> => {
@@ -233,11 +239,11 @@ router.get("/rca/detail/:id", async (req, res): Promise<void> => {
 
 router.get("/rca/repeat-incidents", async (_req, res): Promise<void> => {
   res.json([
-    { pipeline: "fin_gl_ledger_sync", count: 7, lastOccurrence: "2026-04-14T08:25:00Z", pattern: "Connection pool exhaustion during peak" },
-    { pipeline: "ops_inventory_load", count: 5, lastOccurrence: "2026-04-14T06:32:00Z", pattern: "OOM on batch sizes > 2M records" },
-    { pipeline: "sc_shipment_tracker", count: 4, lastOccurrence: "2026-04-14T04:05:00Z", pattern: "Upstream API rate limiting" },
-    { pipeline: "mkt_campaign_agg", count: 3, lastOccurrence: "2026-04-14T07:50:00Z", pattern: "Schema validation failure after source changes" },
-    { pipeline: "cust_churn_predictor", count: 3, lastOccurrence: "2026-04-14T03:20:00Z", pattern: "Resource exhaustion on model training step" },
+    { pipeline: "fin_gl_ledger_sync", occurrences: 7, lastSeen: "2026-04-14T08:25:00Z", rootCause: "Connection pool exhaustion during peak" },
+    { pipeline: "ops_inventory_load", occurrences: 5, lastSeen: "2026-04-14T06:32:00Z", rootCause: "OOM on batch sizes > 2M records" },
+    { pipeline: "sc_shipment_tracker", occurrences: 4, lastSeen: "2026-04-14T04:05:00Z", rootCause: "Upstream API rate limiting" },
+    { pipeline: "mkt_campaign_agg", occurrences: 3, lastSeen: "2026-04-14T07:50:00Z", rootCause: "Schema validation failure after source changes" },
+    { pipeline: "cust_churn_predictor", occurrences: 3, lastSeen: "2026-04-14T03:20:00Z", rootCause: "Resource exhaustion on model training step" },
   ]);
 });
 

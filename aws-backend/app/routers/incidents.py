@@ -43,6 +43,18 @@ def distribution() -> List[IncidentDistributionItem]:
     return []
 
 
+@router.get("/{incident_id}/timeline")
+def timeline(incident_id: str) -> List[dict]:
+    """Status-change history for a single incident (Jira changelog / ServiceNow audit)."""
+    if incidents_service is None:
+        raise HTTPException(status_code=500, detail="Incident service not available")
+    try:
+        return incidents_service.get_timeline(incident_id)
+    except Exception as exc:
+        log.error("Incident timeline failed for %s: %s", incident_id, exc)
+        raise HTTPException(status_code=500, detail=f"Incident provider error: {str(exc)}")
+
+
 @router.get("/list", response_model=List[IncidentRecord])
 def listing() -> List[IncidentRecord]:
     if incidents_service is None:

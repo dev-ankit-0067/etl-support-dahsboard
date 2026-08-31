@@ -126,6 +126,19 @@ def summary() -> IncidentSummary:
     )
 
 
+@cached("short")
+def get_timeline(incident_id: str) -> List[dict]:
+    """Status-change history for a single incident from the active provider.
+
+    Returns ascending ``[{status, timestamp}]`` events (creation first); a
+    single-element list when the provider has no history.
+    """
+    client = get_provider_client()
+    events = client.call("get_incident_timeline", {"incident_id": incident_id}) or []
+    events.sort(key=lambda e: e.get("timestamp") or "")
+    return events
+
+
 @cached("medium")
 def rca_lifecycle(days: int = 30) -> RcaLifecycle:
     resolve: List[float] = []

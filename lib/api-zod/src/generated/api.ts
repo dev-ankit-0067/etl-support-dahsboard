@@ -197,25 +197,25 @@ export const GetMttrTrendResponse = zod.array(GetMttrTrendResponseItem);
 /**
  * @summary Incident lifecycle with RCA status
  */
-export const GetRcaLifecycleResponseItem = zod.object({
-  id: zod.string(),
-  incidentTitle: zod.string(),
-  pipeline: zod.string(),
-  rcaStatus: zod.string(),
-  daysOpen: zod.number(),
-  actionItems: zod.number(),
-  completedActions: zod.number(),
+export const GetRcaLifecycleResponse = zod.object({
+  stages: zod
+    .array(
+      zod.object({
+        stage: zod.string().optional(),
+        avgMinutes: zod.number().optional(),
+      }),
+    )
+    .describe("Lifecycle stages with their average duration in minutes."),
 });
-export const GetRcaLifecycleResponse = zod.array(GetRcaLifecycleResponseItem);
 
 /**
  * @summary Repeat incidents by pipeline
  */
 export const GetRepeatIncidentsResponseItem = zod.object({
   pipeline: zod.string(),
-  count: zod.number(),
-  lastOccurrence: zod.string(),
-  pattern: zod.string(),
+  occurrences: zod.number(),
+  lastSeen: zod.string(),
+  rootCause: zod.string(),
 });
 export const GetRepeatIncidentsResponse = zod.array(
   GetRepeatIncidentsResponseItem,

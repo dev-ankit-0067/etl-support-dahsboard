@@ -137,21 +137,21 @@ export interface MttrTrendItem {
   mttrMin: number;
 }
 
-export interface RcaLifecycleItem {
-  id: string;
-  incidentTitle: string;
-  pipeline: string;
-  rcaStatus: string;
-  daysOpen: number;
-  actionItems: number;
-  completedActions: number;
+export type RcaLifecycleStagesItem = {
+  stage?: string;
+  avgMinutes?: number;
+};
+
+export interface RcaLifecycle {
+  /** Lifecycle stages with their average duration in minutes. */
+  stages: RcaLifecycleStagesItem[];
 }
 
 export interface RepeatIncident {
   pipeline: string;
-  count: number;
-  lastOccurrence: string;
-  pattern: string;
+  occurrences: number;
+  lastSeen: string;
+  rootCause: string;
 }
 
 export interface FailurePattern {

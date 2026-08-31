@@ -194,5 +194,72 @@ def create_incident(
     return {"id": number, "url": url}
 
 
+@mcp.tool()
+def get_incident_timeline(incident_id: str) -> List[dict]:
+    """Return the state-change history of an incident as normalized events.
+
+    Args:
+        incident_id: ServiceNow incident number (e.g. INC0012345).
+    """
+    settings = get_settings()
+    table = settings.servicenow_table
+    state_map = settings.servicenow_status_mapping
+
+    # Resolve the incident's sys_id + creation state/time.
+    resp = requests.get(
+        f"{_base_url()}/api/now/table/{table}",
+        params={
+            "sysparm_query": f"number={incident_id}",
+            "sysparm_fields": "sys_id,state,sys_created_on",
+            "sysparm_limit": "1",
+        },
+        auth=_auth(),
+        headers={"Accept": "application/json"},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    rows = resp.json().get("result", [])
+    if not rows:
+        return [{"status": "Open", "timestamp": None}]
+
+    rec = rows[0]
+    sys_id = rec.get("sys_id")
+    events: List[dict] = [{
+        "status": state_map.get(str(rec.get("state") or ""), "Open"),
+        "timestamp": _iso(rec.get("sys_created_on")),
+    }]
+
+    # State changes from the audit log (best-effort; needs sys_audit access).
+    try:
+        aud = requests.get(
+            f"{_base_url()}/api/now/table/sys_audit",
+            params={
+                "sysparm_query": f"tablename={table}^documentkey={sys_id}",
+                "sysparm_fields": "fieldname,newvalue,sys_created_on",
+                "sysparm_orderby": "sys_created_on",
+                "sysparm_limit": "500",
+            },
+            auth=_auth(),
+            headers={"Accept": "application/json"},
+            timeout=30,
+        )
+        aud.raise_for_status()
+        for item in aud.json().get("result", []):
+            if item.get("fieldname") == "state" and item.get("newvalue") is not None:
+                events.append({
+                    "status": state_map.get(str(item["newvalue"]), "Open"),
+                    "timestamp": _iso(item.get("sys_created_on")),
+                })
+    except Exception as exc:  # noqa: BLE001 - audit log is best-effort
+        log.warning("Audit log unavailable for %s: %s", incident_id, exc)
+
+    events.sort(key=lambda e: e.get("timestamp") or "")
+    deduped: List[dict] = []
+    for e in events:
+        if not deduped or deduped[-1]["status"] != e["status"]:
+            deduped.append(e)
+    return deduped or [{"status": "Open", "timestamp": None}]
+
+
 if __name__ == "__main__":
     mcp.run()

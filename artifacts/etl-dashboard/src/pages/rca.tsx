@@ -7,7 +7,6 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Minus, Bot, BookOpen, ListChecks, Clock, ArrowLeft, AlertTriangle } from "lucide-react";
 import { useLocation, useSearch } from "wouter";
-import RcaDetailModal from "@/components/rca/RcaDetailModal";
 
 function rcaStatusBadge(status: string) {
   const map: Record<string, string> = {
@@ -32,19 +31,10 @@ export default function Rca() {
   const { data: metrics } = useGetRcaMetrics();
   const [, navigate] = useLocation();
   const search = useSearch();
-  const [selectedRcaId, setSelectedRcaId] = useState<string | null>(null);
 
   const params = new URLSearchParams(search);
   const fromIncident = params.get("incident");
   const fromPipeline = params.get("pipeline");
-
-  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
-
-  useEffect(() => {
-    if (fromPipeline && highlightedRowRef.current) {
-      highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [fromPipeline, lifecycle]);
 
   return (
     <div className="space-y-6">
@@ -159,53 +149,24 @@ export default function Rca() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">ID</TableHead>
-                  <TableHead className="text-xs">Incident</TableHead>
-                  <TableHead className="text-xs">Pipeline</TableHead>
-                  <TableHead className="text-xs">RCA Status</TableHead>
-                  <TableHead className="text-xs text-right">Days</TableHead>
-                  <TableHead className="text-xs">Actions</TableHead>
+                  <TableHead className="text-xs">Stage</TableHead>
+                  <TableHead className="text-xs text-right">Avg Duration</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lifecycle?.map((item) => {
-                  const isHighlighted = fromPipeline && item.pipeline === fromPipeline;
-                  return (
-                    <TableRow
-                      key={item.id}
-                      ref={isHighlighted ? highlightedRowRef : null}
-                      className={
-                        isHighlighted
-                          ? "bg-blue-50 ring-1 ring-inset ring-blue-300 transition-colors"
-                          : undefined
-                      }
-                    >
-                      <TableCell>
-                        <button
-                          className="text-xs font-mono text-primary underline-offset-2 hover:underline cursor-pointer"
-                          onClick={() => setSelectedRcaId(item.id)}
-                        >
-                          {isHighlighted ? (
-                            <span className="flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
-                              {item.id}
-                            </span>
-                          ) : item.id}
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-xs max-w-[140px] truncate font-medium">{item.incidentTitle}</TableCell>
-                      <TableCell className="text-xs font-mono text-slate-500">{item.pipeline}</TableCell>
-                      <TableCell>{rcaStatusBadge(item.rcaStatus)}</TableCell>
-                      <TableCell className="text-xs text-right">{item.daysOpen}d</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-muted-foreground">{item.completedActions}/{item.actionItems}</span>
-                          <Progress value={item.actionItems > 0 ? (item.completedActions / item.actionItems) * 100 : 0} className="w-12 h-1.5" />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {lifecycle?.stages?.map((item, i) => (
+                  <TableRow
+                    key={item.stage ?? i}
+                    className="hover:bg-white"
+                  >
+                    <TableCell>
+                      <span className="text-xs font-medium text-slate-700">{item.stage}</span>
+                    </TableCell>
+                    <TableCell className="text-xs text-right font-mono">
+                      {item.avgMinutes != null ? `${item.avgMinutes.toFixed(1)}m` : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </CardContent>
@@ -220,8 +181,8 @@ export default function Rca() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs">Pipeline</TableHead>
-                  <TableHead className="text-xs text-right">Count</TableHead>
-                  <TableHead className="text-xs">Pattern</TableHead>
+                  <TableHead className="text-xs text-right">Occurrences</TableHead>
+                  <TableHead className="text-xs">Root Cause</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -241,9 +202,9 @@ export default function Rca() {
                         ) : item.pipeline}
                       </TableCell>
                       <TableCell className="text-xs text-right">
-                        <span className={`font-medium ${item.count >= 5 ? "text-red-600" : "text-amber-600"}`}>{item.count}</span>
+                        <span className={`font-medium ${item.occurrences >= 5 ? "text-red-600" : "text-amber-600"}`}>{item.occurrences}</span>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{item.pattern}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={item.rootCause}>{item.rootCause}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -282,12 +243,6 @@ export default function Rca() {
           </Table>
         </CardContent>
       </Card>
-
-      <RcaDetailModal
-        rcaId={selectedRcaId}
-        open={!!selectedRcaId}
-        onClose={() => setSelectedRcaId(null)}
-      />
     </div>
   );
 }

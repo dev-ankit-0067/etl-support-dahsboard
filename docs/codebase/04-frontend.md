@@ -199,8 +199,11 @@ backend `resource_type` (`glue`→`job`, `s3`→`s3`), and the four compute type
 `{id, name, status, …}` shape so one code path renders them. Each row expands to a history subsection
 (`/api/{…}/history/:name`) whose **Analyze logs / RCA / Log ticket** buttons open the log viewer /
 agentic flow with the right `resource_type`. **S3** is rendered by a dedicated `S3LogsSection` (an
-adapted list of log files under `s3://<bucket>/<project>/` — Run ID · Project · Last Modified · Size,
-with the same three actions per row — since S3 logs have no run status/cost). Changing the resource
+adapted list of log files under `s3://<bucket>/<project>/` — Run ID · Project · Last Modified · Size ·
+Ticket, with the same three actions per row — since S3 logs have no run status/cost). Every runs
+table shows a **Ticket** column linking the log to its incident ticket (Jira/ServiceNow) via
+`GET /api/ticket-mappings` (shared `TicketCell`); once a mapping exists the **Log ticket** buttons
+(rows + log viewer) disable and read "Ticket Logged". Changing the resource
 dropdown (or the date range) shows a **blocking loading
 overlay** (`resourceLoading`) covering the whole page until data is ready — real for a resource
 switch (awaits the `/runs` fetch), and a brief ~400ms overlay for the client-side date-range filter.
@@ -256,13 +259,16 @@ The two buttons **inside** the `CloudWatchLogViewer` modal now target the **same
 > `routers/agent.py` → `services/agent.py`, has been removed.)
 
 ### `incidents.tsx` (~490 lines)
-Data: `useGetActiveIncidents()`, `useGetRepeatIncidents()`, `useAccount()`.
+Data: `useGetActiveIncidents()`, `useGetRepeatIncidents()`, `useAccount()`, plus `apiFetch` to
+`/api/incident-analyses` (LLM RCA + key findings) and `/api/incidents/{id}/timeline`.
 - Client-side date-range filter (`all`/`today`/`7d`/`30d`) and account-scale slicing.
 - Charts (Recharts): **Incidents by Status** (pie) and **Priority breakdown** (bar), with
   `STATUS_COLOR` / priority colour maps.
-- Sub-components: `HorizontalTimeline({ incident })` (lifecycle progress) and
-  `IncidentDetailSubsection({ incident })` (expandable detail row).
-- Opens `IncidentDetailModal`.
+- Sub-components: `IncidentTimeline({ incident, events })` (real status-change history from the
+  provider — Jira changelog / ServiceNow audit; falls back to **current status only**, never
+  synthetic stages) and `IncidentDetailSubsection({ incident, analyses, timeline })` (expandable
+  detail row: Root Cause Analysis + Key Findings from the stored LLM analysis, with static
+  fallbacks).
 
 ### `costs.tsx` (~380 lines)
 Data: `useGetCostKpis()`, `useAccount()`, and a raw `fetch` to `/api/costs/service-trend`.

@@ -31,7 +31,7 @@ import type {
   OptimizationInsight,
   OverviewKpis,
   PipelineRun,
-  RcaLifecycleItem,
+  RcaLifecycle,
   RcaMetrics,
   RepeatIncident,
   SlowJob,
@@ -1106,8 +1106,8 @@ export const getGetRcaLifecycleUrl = () => {
 
 export const getRcaLifecycle = async (
   options?: RequestInit,
-): Promise<RcaLifecycleItem[]> => {
-  return customFetch<RcaLifecycleItem[]>(getGetRcaLifecycleUrl(), {
+): Promise<RcaLifecycle> => {
+  return customFetch<RcaLifecycle>(getGetRcaLifecycleUrl(), {
     ...options,
     method: "GET",
   });

@@ -271,12 +271,13 @@ function filterRunsByDateRange<T extends { startTime: string }>(
 interface JobHistorySubsectionProps {
   jobName: string;
   historyBase: string;
+  tickets: Record<string, TicketLink>;
   onAnalyzeLogs: (runId: string) => void;
   onGetRca: (runId: string) => void;
   onLogJiraTicket: (runId: string) => void;
 }
 
-function JobHistorySubsection({ jobName, historyBase, onAnalyzeLogs, onGetRca, onLogJiraTicket }: JobHistorySubsectionProps) {
+function JobHistorySubsection({ jobName, historyBase, tickets, onAnalyzeLogs, onGetRca, onLogJiraTicket }: JobHistorySubsectionProps) {
   const { incidentProviderLabel } = useAuth();
   const { data, isLoading } = useQuery<RunHistoryItem[]>({
     queryKey: ["run-history", historyBase, jobName],
@@ -417,10 +418,12 @@ function JobHistorySubsection({ jobName, historyBase, onAnalyzeLogs, onGetRca, o
                     size="sm"
                     variant="outline"
                     className="h-6 text-[10px] px-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
+                    disabled={!!tickets[r.id]}
+                    title={tickets[r.id] ? `Ticket ${tickets[r.id].incidentId} already logged` : undefined}
                     onClick={() => onLogJiraTicket(r.id)}
                   >
                     <TicketPlus className="h-3 w-3 mr-1" />
-                    Log {incidentProviderLabel}
+                    {tickets[r.id] ? "Ticket Logged" : `Log ${incidentProviderLabel}`}
                   </Button>
                 </div>
               </TableCell>
@@ -444,12 +447,13 @@ interface LambdaHistoryItem {
 
 interface LambdaHistorySubsectionProps {
   functionName: string;
+  tickets: Record<string, TicketLink>;
   onAnalyzeLogs: (invocationId: string) => void;
   onGetRca: (invocationId: string) => void;
   onLogJiraTicket: (invocationId: string) => void;
 }
 
-function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJiraTicket }: LambdaHistorySubsectionProps) {
+function LambdaHistorySubsection({ functionName, tickets, onAnalyzeLogs, onGetRca, onLogJiraTicket }: LambdaHistorySubsectionProps) {
   const { incidentProviderLabel } = useAuth();
   const { data, isLoading } = useQuery<LambdaHistoryItem[]>({
     queryKey: ["lambda-history", functionName],
@@ -599,10 +603,12 @@ function LambdaHistorySubsection({ functionName, onAnalyzeLogs, onGetRca, onLogJ
                     size="sm"
                     variant="outline"
                     className="h-6 text-[10px] px-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
+                    disabled={!!tickets[functionName]}
+                    title={tickets[functionName] ? `Ticket ${tickets[functionName].incidentId} already logged` : undefined}
                     onClick={() => onLogJiraTicket(r.id)}
                   >
                     <TicketPlus className="h-3 w-3 mr-1" />
-                    Log {incidentProviderLabel}
+                    {tickets[functionName] ? "Ticket Logged" : `Log ${incidentProviderLabel}`}
                   </Button>
                 </div>
               </TableCell>
@@ -739,8 +745,16 @@ function S3LogsSection({
                         <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => onGetRca(r.id)}>
                           <Sparkles className="h-3 w-3 mr-1" />Get RCA
                         </Button>
-                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-violet-600 border-violet-200 hover:bg-violet-50" onClick={() => onLogJiraTicket(r.id)}>
-                          <TicketPlus className="h-3 w-3 mr-1" />Log {incidentProviderLabel}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
+                          disabled={!!tickets[r.id]}
+                          title={tickets[r.id] ? `Ticket ${tickets[r.id].incidentId} already logged` : undefined}
+                          onClick={() => onLogJiraTicket(r.id)}
+                        >
+                          <TicketPlus className="h-3 w-3 mr-1" />
+                          {tickets[r.id] ? "Ticket Logged" : `Log ${incidentProviderLabel}`}
                         </Button>
                       </div>
                     </TableCell>
@@ -1186,6 +1200,7 @@ export default function ExecutiveOverview() {
                             {isLambda ? (
                               <LambdaHistorySubsection
                                 functionName={row.name}
+                                tickets={tickets}
                                 onAnalyzeLogs={(invocationId) => {
                                   setSelectedJobId(invocationId);
                                   setSelectedJobName(row.name);
@@ -1198,6 +1213,7 @@ export default function ExecutiveOverview() {
                               <JobHistorySubsection
                                 jobName={row.name}
                                 historyBase={cfg.historyBase}
+                                tickets={tickets}
                                 onAnalyzeLogs={(runId) => {
                                   setSelectedJobId(runId);
                                   setSelectedJobName(row.name);
@@ -1227,6 +1243,7 @@ export default function ExecutiveOverview() {
         jobName={selectedJobName}
         resourceType={AGENT_RESOURCE[resourceType]}
         open={logsModalOpen}
+        tickets={tickets}
         onClose={() => {
           setLogsModalOpen(false);
           setSelectedJobId(null);

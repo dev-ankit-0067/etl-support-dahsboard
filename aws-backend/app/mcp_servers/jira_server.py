@@ -162,5 +162,48 @@ def create_incident(
     return {"id": issue.key, "url": url}
 
 
+@mcp.tool()
+def get_incident_timeline(incident_id: str) -> List[dict]:
+    """Return the status-change history of an incident as normalized events.
+
+    Args:
+        incident_id: Jira issue key (e.g. SCRUM-108).
+    """
+    client = JiraClient.get_client()
+    try:
+        issue = client.issue(incident_id, expand="changelog")
+    except JIRAError as exc:
+        log.error("Failed to fetch Jira issue %s: %s", incident_id, exc)
+        raise
+
+    settings = get_settings()
+    status_map = settings.jira_status_mapping
+
+    def _status(name: Optional[str]) -> str:
+        return status_map.get(name or "", "Open") if name else "Open"
+
+    events: List[dict] = []
+    initial = issue.fields.status.name if issue.fields.status else None
+    events.append({"status": _status(initial), "timestamp": _iso(issue.fields.created)})
+
+    try:
+        histories = issue.changelog.histories if getattr(issue, "changelog", None) else []
+        for h in histories:
+            ts = _iso(h.created)
+            for item in h.items or []:
+                if getattr(item, "field", None) == "status" and getattr(item, "toString", None):
+                    events.append({"status": _status(item.toString), "timestamp": ts})
+    except Exception as exc:  # noqa: BLE001 - changelog is best-effort
+        log.warning("Changelog unavailable for %s: %s", incident_id, exc)
+
+    # Ascending by time, dedupe consecutive repeats, keep the creation event first.
+    events.sort(key=lambda e: e.get("timestamp") or "")
+    deduped: List[dict] = []
+    for e in events:
+        if not deduped or deduped[-1]["status"] != e["status"]:
+            deduped.append(e)
+    return deduped or [{"status": "Open", "timestamp": _iso(issue.fields.created)}]
+
+
 if __name__ == "__main__":
     mcp.run()

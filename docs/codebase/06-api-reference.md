@@ -154,6 +154,7 @@ coldStartsPercent, totalInvocations24h`
 |--------|------|---------|---------------|
 | GET | `/incidents/summary` | FastAPI ✅ / Express ✅ | `IncidentSummary` |
 | GET | `/incidents/list` | FastAPI ✅ | `IncidentRecord[]` |
+| GET | `/incidents/{id}/timeline` | FastAPI ✅ | `{ status, timestamp }[]` — real status-change history (Jira changelog / ServiceNow `sys_audit`), ascending; single event when history is unavailable |
 | GET | `/incidents/mttr-trend` | FastAPI 🟡 / Express ✅ | `MttrTrendPoint[]` |
 | GET | `/incidents/distribution` | FastAPI 🟡 | `IncidentDistributionItem[]` |
 | GET | `/incidents/queue` | Express ⚪ | `IncidentQueueItem[]` |

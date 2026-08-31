@@ -6,9 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RepeatIncident {
-  pipeline: string;
-  occurrences: number;
-  lastSeen: string;
-  rootCause: string;
-}
+export type RcaLifecycleStagesItem = {
+  stage?: string;
+  avgMinutes?: number;
+};

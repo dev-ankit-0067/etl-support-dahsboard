@@ -26,7 +26,6 @@ import {
   Clock,
   User,
   CheckCircle2,
-  Circle,
   FileSearch,
   Lightbulb,
 } from "lucide-react";
@@ -53,6 +52,12 @@ interface IncidentAnalysis {
   logId?: string | null;
   resourceType?: string | null;
   createdAt?: string | null;
+}
+
+// Status-change history for an incident (GET /api/incidents/{id}/timeline).
+interface TimelineEvent {
+  status: string;
+  timestamp: string | null;
 }
 
 const SEVERITY_BADGE: Record<string, string> = {
@@ -113,89 +118,64 @@ function severityBadge(sev: string) {
 
 const TIMELINE_STAGES = ["Detected", "Acknowledged", "Investigating", "Mitigating", "Monitoring", "Resolved"];
 
-function HorizontalTimeline({ incident }: { incident: Incident }) {
-  // Determine current stage index from incident status
-  const statusToStageIdx: Record<string, number> = {
-    Open: incident.acknowledged ? 1 : 0,
-    Investigating: 2,
-    Mitigating: 3,
-    Monitoring: 4,
-    Resolved: 5,
-  };
-  const currentIdx = statusToStageIdx[incident.status] ?? 0;
+function IncidentTimeline({ incident, events }: { incident: Incident; events?: TimelineEvent[] | null }) {
+  // Only render real provider history; never invent stages/times.
+  const realEvents = events && events.length >= 2 ? events : null;
 
-  // Compute relative stage timestamps based on createdAt
-  const created = new Date(incident.createdAt).getTime();
-  const stageOffsetsMin = [0, 8, 22, 55, 95, 140];
-  const stageTimes = stageOffsetsMin.map((m) => new Date(created + m * 60_000));
+  if (!realEvents) {
+    return (
+      <div className="rounded-md border bg-white p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Clock className="h-4 w-4 text-slate-400" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Incident Status</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-xs text-muted-foreground">Current status:</span>
+          {statusBadge(incident.status)}
+          <span className="text-xs text-muted-foreground">
+            since {incident.createdAt ? fmt(incident.createdAt) : "—"}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-md border bg-white p-4">
       <div className="flex items-center gap-2 mb-4">
         <Clock className="h-4 w-4 text-slate-400" />
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Incident Timeline</p>
+        <span className="text-[10px] text-muted-foreground ml-auto">from provider history</span>
       </div>
-      <div className="relative">
-        {/* Connecting line */}
-        <div className="absolute top-3 left-0 right-0 h-0.5 bg-slate-200" aria-hidden />
-        <div
-          className="absolute top-3 left-0 h-0.5 bg-emerald-400 transition-all"
-          style={{ width: `${(Math.min(currentIdx, TIMELINE_STAGES.length - 1) / (TIMELINE_STAGES.length - 1)) * 100}%` }}
-          aria-hidden
-        />
-
-        {/* Stage markers */}
-        <div className="relative grid grid-cols-6">
-          {TIMELINE_STAGES.map((stage, i) => {
-            const state: "done" | "active" | "pending" =
-              i < currentIdx ? "done" : i === currentIdx ? "active" : "pending";
-            const dotClasses =
-              state === "done"
-                ? "bg-emerald-500 border-emerald-500 text-white"
-                : state === "active"
-                ? "bg-blue-500 border-blue-500 text-white ring-4 ring-blue-100"
-                : "bg-white border-slate-300 text-slate-300";
-            return (
-              <div key={stage} className="flex flex-col items-center text-center px-1">
-                <div className={`relative z-10 flex items-center justify-center w-6 h-6 rounded-full border-2 ${dotClasses}`}>
-                  {state === "done" ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  ) : (
-                    <Circle className="h-2 w-2 fill-current" />
-                  )}
-                </div>
-                <p
-                  className={`mt-2 text-[11px] font-medium ${
-                    state === "active"
-                      ? "text-blue-700"
-                      : state === "done"
-                      ? "text-slate-700"
-                      : "text-slate-400"
-                  }`}
-                >
-                  {stage}
-                </p>
-                <p className={`text-[10px] mt-0.5 ${state === "pending" ? "text-slate-300" : "text-muted-foreground"}`}>
-                  {state === "pending"
-                    ? "—"
-                    : stageTimes[i].toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <ol className="space-y-3">
+        {realEvents.map((e, i) => (
+          <li key={i} className="flex items-center gap-3">
+            <span
+              className={`h-2 w-2 rounded-full shrink-0 ${
+                i === realEvents.length - 1 ? "bg-blue-500" : "bg-slate-300"
+              }`}
+            />
+            <span className="text-xs">{statusBadge(e.status)}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {e.timestamp ? fmt(e.timestamp) : "—"}
+            </span>
+            {i === 0 && (
+              <span className="text-[10px] uppercase tracking-wide text-slate-400">Created</span>
+            )}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
 
-function IncidentDetailSubsection({ incident, analyses }: { incident: Incident; analyses: Record<string, IncidentAnalysis> }) {
+function IncidentDetailSubsection({ incident, analyses, timeline }: { incident: Incident; analyses: Record<string, IncidentAnalysis>; timeline?: TimelineEvent[] | null }) {
   const { data: repeats } = useGetRepeatIncidents();
 
   const rcaEntry = repeats?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
   const isResolved = incident.status === "Resolved";
 
-  const daysOpen = rcaEntry?.lastOccurrence ? Math.floor((Date.now() - new Date(rcaEntry.lastOccurrence).getTime()) / (1000 * 60 * 60 * 24)) : 2;
+  const daysOpen = rcaEntry?.lastSeen ? Math.floor((Date.now() - new Date(rcaEntry.lastSeen).getTime()) / (1000 * 60 * 60 * 24)) : 2;
 
   // LLM-generated analysis recorded when the ticket was created (falls back to
   // repeat-incident RCA, then to a placeholder for incidents without analysis).
@@ -239,8 +219,8 @@ function IncidentDetailSubsection({ incident, analyses }: { incident: Incident; 
 
       {/* Body */}
       <div className="px-6 py-4 space-y-4">
-        {/* Horizontal timeline */}
-        <HorizontalTimeline incident={incident} />
+        {/* Real provider timeline (falls back to current status only) */}
+        <IncidentTimeline incident={incident} events={timeline} />
 
         {/* RCA + Key Findings - 2 columns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
@@ -275,6 +255,8 @@ export default function Incidents() {
   const [expanded, setExpanded] = useState<string | null>(null);
   // LLM-generated RCA + key findings keyed by incident id.
   const [analyses, setAnalyses] = useState<Record<string, IncidentAnalysis>>({});
+  // Real status-change history per expanded incident id (null = unavailable).
+  const [timelines, setTimelines] = useState<Record<string, TimelineEvent[] | null>>({});
 
   useEffect(() => {
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
@@ -285,6 +267,18 @@ export default function Incidents() {
       )
       .catch(() => setAnalyses({}));
   }, []);
+
+  // Fetch the provider's status-change history when an incident is expanded.
+  useEffect(() => {
+    if (!expanded) return;
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+    apiFetch(`${base}/api/incidents/${encodeURIComponent(expanded)}/timeline`)
+      .then((r) => r.json())
+      .then((d) =>
+        setTimelines((prev) => ({ ...prev, [expanded]: Array.isArray(d) ? d : null })),
+      )
+      .catch(() => setTimelines((prev) => ({ ...prev, [expanded]: null })));
+  }, [expanded]);
 
   // Filter incidents client-side based on the selected date range
   const filteredIncidents = (incidents as Incident[] | undefined) ? (incidents as Incident[]).filter((inc) => {
@@ -512,7 +506,7 @@ export default function Incidents() {
                     {isExpanded && (
                       <TableRow className="hover:bg-transparent">
                         <TableCell colSpan={8} className="p-0">
-                          <IncidentDetailSubsection incident={inc} analyses={analyses} />
+                          <IncidentDetailSubsection incident={inc} analyses={analyses} timeline={timelines[inc.id]} />
                         </TableCell>
                       </TableRow>
                     )}

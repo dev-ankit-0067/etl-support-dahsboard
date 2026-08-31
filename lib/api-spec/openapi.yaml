@@ -235,9 +235,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/RcaLifecycleItem"
+                $ref: "#/components/schemas/RcaLifecycle"
 
   /rca/repeat-incidents:
     get:
@@ -673,48 +671,40 @@ components:
         - mttaMin
         - mttrMin
 
-    RcaLifecycleItem:
+    RcaLifecycle:
       type: object
       properties:
-        id:
-          type: string
-        incidentTitle:
-          type: string
-        pipeline:
-          type: string
-        rcaStatus:
-          type: string
-        daysOpen:
-          type: integer
-        actionItems:
-          type: integer
-        completedActions:
-          type: integer
+        stages:
+          type: array
+          description: Lifecycle stages with their average duration in minutes.
+          items:
+            type: object
+            properties:
+              stage:
+                type: string
+                example: Detect
+              avgMinutes:
+                type: number
+                example: 0.0
       required:
-        - id
-        - incidentTitle
-        - pipeline
-        - rcaStatus
-        - daysOpen
-        - actionItems
-        - completedActions
+        - stages
 
     RepeatIncident:
       type: object
       properties:
         pipeline:
           type: string
-        count:
+        occurrences:
           type: integer
-        lastOccurrence:
+        lastSeen:
           type: string
-        pattern:
+        rootCause:
           type: string
       required:
         - pipeline
-        - count
-        - lastOccurrence
-        - pattern
+        - occurrences
+        - lastSeen
+        - rootCause
 
     FailurePattern:
       type: object

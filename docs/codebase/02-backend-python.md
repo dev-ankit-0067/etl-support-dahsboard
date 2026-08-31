@@ -422,6 +422,10 @@ app/mcp_servers/servicenow_server.py  (Table API)    ┘  the SAME normalized In
 `python -m app.mcp_servers.<name>`). Both expose two interchangeable tools:
 - `list_incidents(project, days) -> list[Incident]`
 - `create_incident(summary, description, priority, issue_type, project) -> {id, url}`
+- `get_incident_timeline(incident_id) -> list[{status, timestamp}]` — real status-change history:
+  Jira reads the issue **changelog** (`expand="changelog"`, status field changes); ServiceNow reads
+  the **`sys_audit`** table (`fieldname=state`) resolved by the incident number. Ascending, deduped,
+  mapped through the provider's status mapping.
 
 where a normalized `Incident` is `{id, title, severity(P1–P4), status(Open/Investigating/Mitigating/
 Resolved), pipeline, domain, owner, createdAt, resolvedAt}`.

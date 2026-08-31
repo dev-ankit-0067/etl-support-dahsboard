@@ -12,6 +12,7 @@ import {
   Loader2,
   ScrollText,
   AlertCircle,
+  TicketPlus,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
@@ -50,6 +51,7 @@ interface Props {
   resourceType: ResourceType;
   open: boolean;
   onClose: () => void;
+  tickets?: Record<string, { incidentId: string; url?: string | null }>;
 }
 
 const RESOURCE_LABEL: Record<ResourceType, string> = {
@@ -66,6 +68,7 @@ export default function CloudWatchLogViewer({
   resourceType,
   open,
   onClose,
+  tickets,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
@@ -128,6 +131,7 @@ export default function CloudWatchLogViewer({
 
   // The agent identifies a Glue job by its run id, but a Lambda by its function name.
   const agentLogId = resourceType === "lambda" ? jobName : jobId;
+  const existingTicket = tickets?.[agentLogId || ""];
 
   const handleRcaAnalysis = async () => {
     if (!agentLogId) return;
@@ -242,10 +246,12 @@ export default function CloudWatchLogViewer({
                 size="sm"
                 variant="outline"
                 onClick={handleCreateJiraTicket}
-                disabled={logs.length === 0 || actionLoading !== null}
+                disabled={logs.length === 0 || actionLoading !== null || !!existingTicket}
+                title={existingTicket ? `Ticket ${existingTicket.incidentId} already logged` : undefined}
                 className="h-8 text-xs"
               >
-                Log {incidentProviderLabel} ticket
+                <TicketPlus className="h-3 w-3 mr-1" />
+                {existingTicket ? "Ticket Logged" : `Log ${incidentProviderLabel} ticket`}
               </Button>
               <Button
                 size="sm"
