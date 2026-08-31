@@ -120,6 +120,17 @@ automatically when `/agents/analyze` `type=jira` returns a ticket key.
 Backed by the `log_ticket_mappings` table (`DATABASE_URL`, SQLite by default — see
 [02-backend-python.md](./02-backend-python.md#ticket-mappings)).
 
+## Incident analyses  (LLM-generated RCA + key findings, FastAPI + SQLAlchemy only)
+
+Populated automatically when `/agents/analyze` `type=jira` creates a ticket — the LLM's structured
+analysis is parsed into a one-line root cause and 3–4 key-findings bullets.
+
+| Method | Path | Backend | Response type |
+|--------|------|---------|---------------|
+| GET | `/incident-analyses` | FastAPI ✅ | `{ analyses: { incident_id: { rootCause, keyFindings[], provider, logId, resourceType, createdAt } } }` — optional `?incident_ids=a,b` filters |
+
+Backed by the `incident_analyses` table (unique per incident id).
+
 **`LambdaKpis`** — `totalFunctions, healthy, withErrors, throttled, avgDurationMs,
 coldStartsPercent, totalInvocations24h`
 **`LambdaInvocation`** — `id, functionName, status, startTime, endTime, duration, costPerRun` —

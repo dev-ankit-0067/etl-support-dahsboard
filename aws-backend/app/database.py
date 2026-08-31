@@ -61,7 +61,7 @@ def init_db() -> None:
     """Create missing tables (idempotent). Called at app startup."""
     try:
         # Import models so their metadata registers on Base before create_all.
-        from .models import ticket_mapping  # noqa: F401
+        from .models import incident_analysis, ticket_mapping  # noqa: F401
 
         Base.metadata.create_all(engine)
         log.info("Database ready (%s)", get_settings().database_url)

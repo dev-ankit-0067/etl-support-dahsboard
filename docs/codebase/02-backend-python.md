@@ -475,6 +475,23 @@ ticket:
 > Note: the SQLite file lives in the container working dir and is **ephemeral** — mappings reset on
 > task restarts. Set `DATABASE_URL` to Postgres for durable storage.
 
+### Incident analyses — LLM-generated RCA + key findings
+
+When the ticket flow (`run_jira_creation_agent`, `type="jira"`) creates a ticket, the LLM's
+structured output is parsed (`_extract_analysis_fields`) into a **one-line root cause** and
+**3–4 key-findings bullets** (the `_LOG_ANALYSIS_SYSTEM` / `_JIRA_CREATION_SYSTEM` prompts mandate
+`**Root Cause:**` and `**Key Findings:**` sections) and persisted:
+
+- **`app/models/incident_analysis.py`** — `incident_analyses` table: `incident_id` (unique,
+  indexed), `provider`, `log_id`, `resource_type`, `root_cause` (Text), `key_findings` (JSON list),
+  `created_at`.
+- **`app/services/incident_analysis_service.py`** — `record_analysis(...)` (upsert per incident id,
+  capped at 4 findings; never raises) and `get_analyses(incident_ids=None)` keyed by incident id.
+- **`app/routers/incident_analyses.py`** — `GET /api/incident-analyses` (auth-protected; optional
+  `?incident_ids=...`) → `{ analyses: {incident_id: {...}} }`, consumed by the Incident Centre's
+  expanded row (Root Cause Analysis + Key Findings cards; falls back to static placeholders for
+  incidents created outside the app).
+
 ## AI agents
 
 A single HuggingFace-backed **LangChain tool-calling agent**. Every AI button in the UI routes to it

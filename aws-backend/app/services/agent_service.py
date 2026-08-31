@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain.agents import create_agent
 from langchain_core.messages import ToolMessage
@@ -12,6 +13,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from ..config import get_settings
 from .. import remote_config
 from ..services import cloudwatch_service
+from ..services import incident_analysis_service
 from ..services import incidents_service
 from ..services import s3_logs_service
 from ..services import tags_service
@@ -137,8 +139,9 @@ When given a resource identifier (a Glue job run ID, a Lambda function name, an 
 Respond with a structured analysis in this exact format:
 **Summary:** <one-line description>
 **Severity:** <P1/P2/P3/P4>
-**Root Cause:** <what caused the failure>
+**Root Cause:** <one-line root cause — no more than 15 words>
 **Affected Component:** <which stage/transform/connection failed>
+**Key Findings:** <3-4 bullet points, each on its own line starting with "- ">
 **Remediation:** <numbered list of fix steps>
 **Details:** <full analysis with relevant log excerpts>"""
 
@@ -151,7 +154,16 @@ When given a resource identifier (a Glue job run ID, a Lambda function name, an 
    - summary: "[<SEVERITY>] <pipeline_name>: <one-line issue>"
    - description: full markdown incident report (error details, timestamps, root cause, remediation)
    - priority: P1→Highest, P2→High, P3→Medium, P4→Low
-4. Confirm the returned ticket id/key and provide your full structured analysis."""
+4. Confirm the returned ticket id/key and provide your full structured analysis.
+
+Respond with the structured analysis in this exact format:
+**Summary:** <one-line description>
+**Severity:** <P1/P2/P3/P4>
+**Root Cause:** <one-line root cause — no more than 15 words>
+**Affected Component:** <which stage/transform/connection failed>
+**Key Findings:** <3-4 bullet points, each on its own line starting with "- ">
+**Remediation:** <numbered list of fix steps>
+**Details:** <full analysis with relevant log excerpts>"""
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +194,34 @@ def _log_tool(resource_type: str):
 
 def _resource_label(resource_type: str) -> str:
     return _RESOURCE_LABELS.get(resource_type, "Glue job run ID")
+
+
+def _extract_analysis_fields(output: str) -> Tuple[Optional[str], List[str]]:
+    """Extract the one-line root cause and key-findings bullets from the agent output.
+
+    Parses the structured ``**Root Cause:**`` / ``**Key Findings:**`` sections the
+    prompts mandate; degrades gracefully when the LLM deviates from the format.
+    """
+    root_cause: Optional[str] = None
+    findings: List[str] = []
+
+    m = re.search(r"\*\*Root Cause:\*\*\s*(.+)", output or "")
+    if m:
+        root_cause = m.group(1).strip(" -*•\n")
+
+    m = re.search(r"\*\*Key Findings:\*\*\s*(.*?)(?=\*\*|\Z)", output or "", re.DOTALL)
+    if m:
+        for line in m.group(1).splitlines():
+            item = line.strip().lstrip("-*•").strip()
+            if item and len(findings) < 4:
+                findings.append(item)
+
+    if root_cause is None:
+        # Fallback: first non-empty line of the analysis, truncated.
+        first = next((l.strip() for l in (output or "").splitlines() if l.strip()), None)
+        if first:
+            root_cause = (first[:200] + "…") if len(first) > 200 else first
+    return root_cause, findings
 
 
 def run_log_analysis_agent(log_id: str, resource_type: str = "job") -> Dict[str, Any]:
@@ -236,6 +276,17 @@ def run_jira_creation_agent(log_id: str, resource_type: str = "job") -> Dict[str
             provider=remote_config.incident_provider(),
             resource_type=resource_type,
             project=tags_service.active_project(),
+        )
+        # Extract + persist the LLM's RCA (one-liner) and key findings (bullets)
+        # for the Incident Centre. Also best-effort only.
+        root_cause, findings = _extract_analysis_fields(output)
+        incident_analysis_service.record_analysis(
+            incident_id=jira_key,
+            provider=remote_config.incident_provider(),
+            root_cause=root_cause or "Root cause not determined.",
+            key_findings=findings,
+            log_id=log_id,
+            resource_type=resource_type,
         )
 
     return {

@@ -1,5 +1,6 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useAccount } from "@/contexts/AccountContext";
+import { apiFetch } from "@/lib/api";
 import {
   useGetActiveIncidents,
   useGetRepeatIncidents,
@@ -42,6 +43,16 @@ interface Incident {
   acknowledged: boolean;
   escalationLevel: number;
   age: string;
+}
+
+// LLM-generated analysis recorded at ticket creation (GET /api/incident-analyses).
+interface IncidentAnalysis {
+  rootCause?: string;
+  keyFindings?: string[];
+  provider?: string;
+  logId?: string | null;
+  resourceType?: string | null;
+  createdAt?: string | null;
 }
 
 const SEVERITY_BADGE: Record<string, string> = {
@@ -178,7 +189,7 @@ function HorizontalTimeline({ incident }: { incident: Incident }) {
   );
 }
 
-function IncidentDetailSubsection({ incident }: { incident: Incident }) {
+function IncidentDetailSubsection({ incident, analyses }: { incident: Incident; analyses: Record<string, IncidentAnalysis> }) {
   const { data: repeats } = useGetRepeatIncidents();
 
   const rcaEntry = repeats?.find((r: { pipeline: string }) => r.pipeline === incident.pipeline);
@@ -186,10 +197,23 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
 
   const daysOpen = rcaEntry?.lastOccurrence ? Math.floor((Date.now() - new Date(rcaEntry.lastOccurrence).getTime()) / (1000 * 60 * 60 * 24)) : 2;
 
-  const rcaSummary = rcaEntry?.rootCause ||
+  // LLM-generated analysis recorded when the ticket was created (falls back to
+  // repeat-incident RCA, then to a placeholder for incidents without analysis).
+  const analysis = analyses[incident.id];
+
+  const rcaSummary = analysis?.rootCause ||
+    rcaEntry?.rootCause ||
     (isResolved
       ? "A schema mismatch introduced during the latest upstream release caused repeated job failures until the pipeline was rolled back and the source contract was corrected."
       : "Investigation in progress. Initial analysis points to an upstream change introducing unexpected payload variance; on-call team is collecting trace data and validating recent deployments.");
+
+  const keyFindings = analysis?.keyFindings?.length
+    ? analysis.keyFindings
+    : [
+        "Upstream schema drift introduced an unexpected field change.",
+        "Validation rules did not fail fast before the transformation step.",
+        "Retry behavior amplified the impact by repeatedly reprocessing failed batches.",
+      ];
 
   return (
     <div className="bg-slate-50 border-t border-b">
@@ -233,9 +257,9 @@ function IncidentDetailSubsection({ incident }: { incident: Incident }) {
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Findings</p>
             </div>
             <ul className="text-xs text-slate-700 list-disc pl-5 space-y-1.5 leading-5">
-              <li>Upstream schema drift introduced an unexpected field change.</li>
-              <li>Validation rules did not fail fast before the transformation step.</li>
-              <li>Retry behavior amplified the impact by repeatedly reprocessing failed batches.</li>
+              {keyFindings.map((f, i) => (
+                <li key={i}>{f}</li>
+              ))}
             </ul>
           </div>
         </div>
@@ -249,6 +273,18 @@ export default function Incidents() {
   const { account } = useAccount();
   const [dateRange, setDateRange] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  // LLM-generated RCA + key findings keyed by incident id.
+  const [analyses, setAnalyses] = useState<Record<string, IncidentAnalysis>>({});
+
+  useEffect(() => {
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+    apiFetch(`${base}/api/incident-analyses`)
+      .then((r) => r.json())
+      .then((d) =>
+        setAnalyses(d?.analyses && typeof d.analyses === "object" ? d.analyses : {}),
+      )
+      .catch(() => setAnalyses({}));
+  }, []);
 
   // Filter incidents client-side based on the selected date range
   const filteredIncidents = (incidents as Incident[] | undefined) ? (incidents as Incident[]).filter((inc) => {
@@ -476,7 +512,7 @@ export default function Incidents() {
                     {isExpanded && (
                       <TableRow className="hover:bg-transparent">
                         <TableCell colSpan={8} className="p-0">
-                          <IncidentDetailSubsection incident={inc} />
+                          <IncidentDetailSubsection incident={inc} analyses={analyses} />
                         </TableCell>
                       </TableRow>
                     )}

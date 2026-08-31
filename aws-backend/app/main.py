@@ -15,8 +15,8 @@ from .context import current_project
 from .database import init_db
 from .logging_config import configure_logging
 from .routers import (
-    agents, cloudwatch, costs, emr, emr_serverless, health, incidents,
-    lambdas, meta, overview, pipelines, rca, s3_logs, ticket_mappings,
+    agents, cloudwatch, costs, emr, emr_serverless, health, incident_analyses,
+    incidents, lambdas, meta, overview, pipelines, rca, s3_logs, ticket_mappings,
 )
 
 log = logging.getLogger(__name__)
@@ -85,6 +85,7 @@ def create_app() -> FastAPI:
         agents.router,
         s3_logs.router,
         ticket_mappings.router,
+        incident_analyses.router,
     ]
     for r in protected_routers:
         app.include_router(r, prefix=settings.api_prefix, dependencies=[Depends(require_auth)])
